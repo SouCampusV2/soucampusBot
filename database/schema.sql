@@ -70,9 +70,5 @@ CREATE TABLE IF NOT EXISTS guild_config (
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_tickets_client_channel ON tickets(client_channel_id);
-CREATE INDEX IF NOT EXISTS idx_tickets_freelancer_channel ON tickets(freelancer_channel_id);
-CREATE INDEX IF NOT EXISTS idx_tickets_guild ON tickets(guild_id);
-CREATE INDEX IF NOT EXISTS idx_ticket_fields_ticket ON ticket_fields(ticket_id);
-CREATE INDEX IF NOT EXISTS idx_proposals_ticket ON proposals(ticket_id);
-CREATE INDEX IF NOT EXISTS idx_reviews_ticket ON reviews(ticket_id);
+-- Indexes are created in code (Database.js runMigrations) AFTER column migrations,
+-- so they can safely reference columns added to pre-existing tables.

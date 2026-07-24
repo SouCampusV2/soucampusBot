@@ -167,26 +167,6 @@ export async function handleOrderForm2Modal(interaction, parts) {
 }
 
 /**
- * Handle a message in an order ticket channel. Modal flow: only hint if form not complete.
- * When form is complete (step >= 8), do NOT reply to random messages — avoids spam "Order form is complete".
- * @param {import('discord.js').Message} message
- * @param {object} ticket
- */
-export async function handleOrderChannelMessage(message, ticket) {
-  const ticketId = ticket.id;
-  const step = getCurrentStep(ticketId);
-  if (step === 0) {
-    await message.reply('Click **«Fill order form»** above to start.').catch(() => {});
-    return;
-  }
-  if (step >= 1 && step < 8) {
-    await message.reply('Use the form buttons above to continue.').catch(() => {});
-    return;
-  }
-  // step >= 8: form complete — do not reply to random messages (no "Order form is complete" spam)
-}
-
-/**
  * Handle budget select (step 8): save budget, show order summary + Edit Order button.
  * @param {import('discord.js').StringSelectMenuInteraction} interaction
  * @param {string[]} parts - [ 'order_budget', ticketId ]

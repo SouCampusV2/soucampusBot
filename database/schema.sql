@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS tickets (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,              -- 'order' | 'help' | 'application'
+  guild_id TEXT,
   client_id TEXT NOT NULL,
   client_channel_id TEXT,
   freelancer_channel_id TEXT,
@@ -10,6 +11,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   deadline TEXT,
   payment_confirmed INTEGER DEFAULT 0,
   completed INTEGER DEFAULT 0,
+  relay_client_msg_id TEXT,        -- last relay message id in client channel (for reply references)
+  relay_freelancer_msg_id TEXT,    -- last relay message id in freelancer channel
+  quote_channel_due_at INTEGER,    -- epoch ms: when quote channel should be created (STEP 4), NULL once done
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -50,3 +54,25 @@ CREATE TABLE IF NOT EXISTS action_log (
   detail TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Per-server (guild) configuration. Set via the /setup slash command.
+-- Any value left NULL falls back to the matching .env variable (single-server mode).
+CREATE TABLE IF NOT EXISTS guild_config (
+  guild_id TEXT PRIMARY KEY,
+  category_active_orders TEXT,
+  category_quotes TEXT,
+  category_archived TEXT,
+  channel_panel TEXT,
+  channel_reviews TEXT,
+  role_manager TEXT,
+  role_freelancer TEXT,
+  brand_color TEXT,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tickets_client_channel ON tickets(client_channel_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_freelancer_channel ON tickets(freelancer_channel_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_guild ON tickets(guild_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_fields_ticket ON ticket_fields(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_proposals_ticket ON proposals(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_ticket ON reviews(ticket_id);

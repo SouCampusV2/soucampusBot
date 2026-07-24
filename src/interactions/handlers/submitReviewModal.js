@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto';
 import { run } from '../../core/Database.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
 import { reviewEmbed } from '../../embeds/templates.js';
+import { getSetting } from '../../core/GuildConfig.js';
 import { logger } from '../../utils/logger.js';
 
 export async function handleSubmitReviewModal(interaction, parts) {
@@ -40,7 +41,7 @@ export async function handleSubmitReviewModal(interaction, parts) {
         if (u) freelancerName = u.displayName || u.username || freelancerName;
       } catch (_) {}
     }
-    const channelReviewsId = process.env.CHANNEL_REVIEWS;
+    const channelReviewsId = getSetting(interaction.guildId, 'channel_reviews');
     if (channelReviewsId) {
       const ch = await interaction.client.channels.fetch(channelReviewsId).catch(() => null);
       if (ch) {

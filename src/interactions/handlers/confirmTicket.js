@@ -5,6 +5,7 @@
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { getOrderChannelName } from '../../utils/channelNaming.js';
 import { getManagerRole } from '../../utils/permissions.js';
+import { getSetting } from '../../core/GuildConfig.js';
 import { createTicket } from '../../modules/tickets/TicketRepository.js';
 import { startOrderFlow } from '../../modules/tickets/flows/OrderFlow.js';
 import { tryConsumeTicketCreate } from '../../utils/rateLimit.js';
@@ -39,10 +40,13 @@ export async function handleConfirmTicket(interaction, parts) {
     return;
   }
 
-  const categoryId = process.env.CATEGORY_ACTIVE_ORDERS;
+  const categoryId = getSetting(guild.id, 'category_active_orders');
   if (!categoryId) {
-    logger.error('CATEGORY_ACTIVE_ORDERS not set in .env');
-    await interaction.reply({ content: 'Server is not configured for tickets yet.', ephemeral: true });
+    logger.error('category_active_orders not configured', { guildId: guild.id });
+    await interaction.reply({
+      content: 'This server is not configured yet. An admin needs to run `/setup active_orders` first.',
+      ephemeral: true,
+    });
     return;
   }
 
@@ -72,6 +76,7 @@ export async function handleConfirmTicket(interaction, parts) {
 
     const { id: ticketId } = createTicket({
       type,
+      guildId: guild.id,
       clientId: userId,
       clientChannelId: channel.id,
     });

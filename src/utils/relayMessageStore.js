@@ -1,16 +1,18 @@
 /**
- * In-memory store of last relay message IDs per ticket (client channel + freelancer channel).
- * Used so replies are sent as Discord "reply" under the original message in both channels.
+ * Store of last relay message IDs per ticket (client channel + freelancer channel),
+ * used so replies are sent as Discord "reply" under the original message in both channels.
+ *
+ * Backed by the tickets table so it survives bot restarts (STEP 6).
  */
 
-const relayLastMessageIds = new Map();
+import { setRelayMessageIdsDb, getRelayMessageIdsDb } from '../modules/tickets/TicketRepository.js';
 
 /**
  * @param {string} ticketId
  * @param {{ clientMsgId: string, freelancerMsgId: string }} ids
  */
 export function setRelayMessageIds(ticketId, ids) {
-  relayLastMessageIds.set(ticketId, ids);
+  setRelayMessageIdsDb(ticketId, ids);
 }
 
 /**
@@ -18,5 +20,5 @@ export function setRelayMessageIds(ticketId, ids) {
  * @returns {{ clientMsgId: string, freelancerMsgId: string } | undefined}
  */
 export function getRelayMessageIds(ticketId) {
-  return relayLastMessageIds.get(ticketId);
+  return getRelayMessageIdsDb(ticketId);
 }

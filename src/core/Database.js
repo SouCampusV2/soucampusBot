@@ -25,15 +25,38 @@ export function initDatabase(dbPath) {
   }
   try {
     dbInstance = new Database(dbPath);
+    dbInstance.pragma('journal_mode = WAL');
+    dbInstance.pragma('foreign_keys = ON');
     const schemaPath = join(__dirname, '../../database/schema.sql');
     const schema = readFileSync(schemaPath, 'utf-8');
     dbInstance.exec(schema);
+    runMigrations(dbInstance);
     logger.info('Database initialized', { path: dbPath });
     return dbInstance;
   } catch (err) {
     logger.error('Database init failed', { error: err.message });
     throw err;
   }
+}
+
+/**
+ * Idempotent migrations for existing databases created before new columns were added.
+ * `CREATE TABLE IF NOT EXISTS` does not add columns to already-existing tables, so we
+ * add them here. Each ALTER is wrapped because SQLite throws if the column already exists.
+ * @param {import('better-sqlite3').Database} db
+ */
+function runMigrations(db) {
+  const ticketColumns = db.prepare('PRAGMA table_info(tickets)').all().map((c) => c.name);
+  const addTicketColumn = (name, definition) => {
+    if (!ticketColumns.includes(name)) {
+      db.exec(`ALTER TABLE tickets ADD COLUMN ${name} ${definition}`);
+      logger.info('Migration: added column', { table: 'tickets', column: name });
+    }
+  };
+  addTicketColumn('guild_id', 'TEXT');
+  addTicketColumn('relay_client_msg_id', 'TEXT');
+  addTicketColumn('relay_freelancer_msg_id', 'TEXT');
+  addTicketColumn('quote_channel_due_at', 'INTEGER');
 }
 
 /**

@@ -23,8 +23,8 @@ export function createTicket(data) {
   const id = generateTicketId();
   try {
     run(
-      `INSERT INTO tickets (id, type, client_id, client_channel_id) VALUES (?, ?, ?, ?)`,
-      [id, data.type, data.clientId, data.clientChannelId ?? null]
+      `INSERT INTO tickets (id, type, guild_id, client_id, client_channel_id) VALUES (?, ?, ?, ?, ?)`,
+      [id, data.type, data.guildId ?? null, data.clientId, data.clientChannelId ?? null]
     );
     logger.info('Ticket created', { ticketId: id, type: data.type, clientId: data.clientId });
     return { id };
@@ -126,4 +126,49 @@ export function setPaymentConfirmed(ticketId) {
  */
 export function setTicketCompleted(ticketId) {
   run('UPDATE tickets SET completed = 1 WHERE id = ?', [ticketId]);
+}
+
+/**
+ * Persist last relay message ids (client + freelancer channel) so replies can reference them.
+ * Survives bot restarts (STEP 6).
+ * @param {string} ticketId
+ * @param {{ clientMsgId: string, freelancerMsgId: string }} ids
+ */
+export function setRelayMessageIdsDb(ticketId, ids) {
+  run('UPDATE tickets SET relay_client_msg_id = ?, relay_freelancer_msg_id = ? WHERE id = ?', [
+    ids.clientMsgId,
+    ids.freelancerMsgId,
+    ticketId,
+  ]);
+}
+
+/**
+ * Read last relay message ids for a ticket.
+ * @param {string} ticketId
+ * @returns {{ clientMsgId: string, freelancerMsgId: string } | undefined}
+ */
+export function getRelayMessageIdsDb(ticketId) {
+  const row = get('SELECT relay_client_msg_id, relay_freelancer_msg_id FROM tickets WHERE id = ?', [ticketId]);
+  if (!row || (!row.relay_client_msg_id && !row.relay_freelancer_msg_id)) return undefined;
+  return { clientMsgId: row.relay_client_msg_id, freelancerMsgId: row.relay_freelancer_msg_id };
+}
+
+/**
+ * Set the epoch-ms time at which the quote channel should be created (STEP 4), or NULL to clear.
+ * @param {string} ticketId
+ * @param {number | null} dueAtMs
+ */
+export function setQuoteChannelDueAt(ticketId, dueAtMs) {
+  run('UPDATE tickets SET quote_channel_due_at = ? WHERE id = ?', [dueAtMs, ticketId]);
+}
+
+/**
+ * Tickets that still owe a quote channel (due time set, channel not yet created).
+ * Used on startup to recover pending timers after a restart.
+ * @returns {object[]}
+ */
+export function getPendingQuoteChannelTickets() {
+  return query(
+    'SELECT * FROM tickets WHERE quote_channel_due_at IS NOT NULL AND freelancer_channel_id IS NULL'
+  );
 }

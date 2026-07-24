@@ -23,10 +23,10 @@ export function getBot(options = {}) {
   const client = new Client({
     intents: [
       GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.DirectMessages,
+      // GuildMembers (privileged) is used to fetch members for role checks / display names.
       GatewayIntentBits.GuildMembers,
-      GatewayIntentBits.MessageContent, // required for order dialog (read user answers in ticket channel)
+      // NOTE: MessageContent intent was removed — the order flow is fully modal/button-based,
+      // so the bot no longer needs to read message text. This lifts the 100-server verification cap.
     ],
   });
 

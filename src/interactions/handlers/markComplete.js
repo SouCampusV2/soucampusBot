@@ -4,6 +4,7 @@
 
 import { getTicketById, setTicketCompleted } from '../../modules/tickets/TicketRepository.js';
 import { isManagerOrAdmin } from '../../utils/permissions.js';
+import { getSetting } from '../../core/GuildConfig.js';
 import { leaveReviewButtonRow } from '../../embeds/templates.js';
 import { logger } from '../../utils/logger.js';
 
@@ -40,7 +41,8 @@ export async function handleMarkComplete(interaction, parts) {
       const fc = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
       if (fc) {
         await fc.send('This order has been marked complete. The client will be asked to leave a review.');
-        await fc.setParent(process.env.CATEGORY_ARCHIVED || null).catch(() => {});
+        const archiveCategory = getSetting(fc.guild.id, 'category_archived');
+        await fc.setParent(archiveCategory || null).catch(() => {});
         await fc.permissionOverwrites.edit(fc.guild.id, { SendMessages: false }).catch(() => {});
       }
     }

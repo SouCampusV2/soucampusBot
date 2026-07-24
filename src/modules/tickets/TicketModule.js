@@ -6,6 +6,7 @@
 import { Events } from 'discord.js';
 import { registerHandler, registerCommandHandler } from '../../core/InteractionRouter.js';
 import { inviteCommandData, handleInviteCommand } from '../../commands/inviteCommand.js';
+import { setupCommandData, handleSetupCommand } from '../../commands/setupCommand.js';
 import { handleCreateTicket } from '../../interactions/handlers/createTicket.js';
 import { handleSelectTicketType } from '../../interactions/handlers/selectTicketType.js';
 import { handleConfirmTicket } from '../../interactions/handlers/confirmTicket.js';
@@ -35,9 +36,8 @@ import { handleSubmitReview } from '../../interactions/handlers/submitReview.js'
 import { handleSubmitReviewModal } from '../../interactions/handlers/submitReviewModal.js';
 import { scheduleDeadlineJob } from '../../jobs/deadlineJob.js';
 import { getTicketPanelPayload } from '../../embeds/templates.js';
-import { PREFIX, TICKET_TYPES } from '../../constants.js';
-import { getTicketByClientChannelId } from './TicketRepository.js';
-import { handleOrderChannelMessage } from './flows/OrderFlow.js';
+import { PREFIX } from '../../constants.js';
+import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -56,7 +56,7 @@ async function postPanel(client) {
       logger.warn('Could not fetch CHANNEL_TICKET_PANEL', { channelId });
       return;
     }
-    const payload = getTicketPanelPayload();
+    const payload = getTicketPanelPayload(channel.guildId);
     await channel.send(payload);
     logger.info('Ticket panel posted', { channelId });
   } catch (err) {
@@ -65,25 +65,33 @@ async function postPanel(client) {
 }
 
 /**
- * Register ticket handlers and post panel when bot is ready.
+ * Register the bot's slash commands. Uses the dev guild (GUILD_ID) for instant updates
+ * if set, otherwise registers globally (may take up to ~1h to propagate).
  * @param {import('discord.js').Client} client
  */
-/**
- * Handle message in a channel: if it's an order ticket client channel, run order dialog.
- */
-async function onMessageCreate(message) {
-  if (message.author.bot) return;
-  const ticket = getTicketByClientChannelId(message.channel.id);
-  if (!ticket || ticket.type !== TICKET_TYPES.ORDER) return;
+async function registerSlashCommands(client) {
+  const commands = [inviteCommandData, setupCommandData];
+  const guildId = process.env.GUILD_ID;
   try {
-    await handleOrderChannelMessage(message, ticket);
+    if (guildId) {
+      await client.application.commands.set(commands, guildId);
+      logger.info('Slash commands registered (guild)', { guildId, count: commands.length });
+    } else {
+      await client.application.commands.set(commands);
+      logger.info('Slash commands registered (global)', { count: commands.length });
+    }
   } catch (err) {
-    logger.error('OrderFlow handleOrderChannelMessage failed', { error: err.message });
+    logger.warn('Could not register slash commands', { error: err.message });
   }
 }
 
+/**
+ * Register ticket handlers and post panel when bot is ready.
+ * @param {import('discord.js').Client} client
+ */
 export function registerTicketModule(client) {
   registerCommandHandler('invite', handleInviteCommand);
+  registerCommandHandler('setup', handleSetupCommand);
   registerHandler(PREFIX.CREATE_TICKET, handleCreateTicket);
   registerHandler(PREFIX.SELECT_TICKET_TYPE, handleSelectTicketType);
   registerHandler(PREFIX.CONFIRM_TICKET, handleConfirmTicket);
@@ -115,15 +123,7 @@ export function registerTicketModule(client) {
   client.once(Events.ClientReady, async () => {
     postPanel(client);
     scheduleDeadlineJob(client);
-    const guildId = process.env.GUILD_ID;
-    if (guildId) {
-      try {
-        await client.application.commands.create(inviteCommandData, guildId);
-        logger.info('Slash command /invite registered', { guildId });
-      } catch (err) {
-        logger.warn('Could not register /invite command (may already exist)', { guildId, error: err.message });
-      }
-    }
+    recoverPendingQuoteChannels(client);
+    await registerSlashCommands(client);
   });
-  client.on(Events.MessageCreate, onMessageCreate);
 }

@@ -3,6 +3,7 @@
  */
 
 import { ROLES } from '../constants.js';
+import { getSetting } from '../core/GuildConfig.js';
 
 /**
  * Check if member has a role by name.
@@ -31,7 +32,7 @@ export function getRoleByName(guild, roleName) {
  * @returns {import('discord.js').Role | undefined}
  */
 export function getManagerRole(guild) {
-  const id = process.env.ROLE_MANAGER_ID;
+  const id = getSetting(guild.id, 'role_manager');
   if (id) return guild.roles.cache.get(id) ?? undefined;
   return getRoleByName(guild, ROLES.MANAGER);
 }
@@ -42,7 +43,7 @@ export function getManagerRole(guild) {
  * @returns {import('discord.js').Role | undefined}
  */
 export function getFreelancerRole(guild) {
-  const id = process.env.ROLE_FREELANCER_ID;
+  const id = getSetting(guild.id, 'role_freelancer');
   if (id) return guild.roles.cache.get(id) ?? undefined;
   return getRoleByName(guild, ROLES.FREELANCER);
 }

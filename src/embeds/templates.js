@@ -13,16 +13,30 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { PREFIX, TICKET_TYPES, ORDER_QUESTION_KEYS, ORDER_BUDGET_OPTIONS } from '../constants.js';
+import { getSetting } from '../core/GuildConfig.js';
 
-const EMBED_COLOR = 0x5865f2; // Discord blurple / brand
+const EMBED_COLOR = 0x5865f2; // Discord blurple / brand (default)
+
+/**
+ * Resolve the brand color for a guild (from /setup color), falling back to the default.
+ * @param {string} [guildId]
+ * @returns {number}
+ */
+function brandColor(guildId) {
+  if (!guildId) return EMBED_COLOR;
+  const hex = getSetting(guildId, 'brand_color');
+  if (!hex) return EMBED_COLOR;
+  const parsed = parseInt(hex.replace('#', ''), 16);
+  return Number.isFinite(parsed) ? parsed : EMBED_COLOR;
+}
 
 /**
  * Ticket panel embed (post in CHANNEL_TICKET_PANEL).
  * @returns {EmbedBuilder}
  */
-export function ticketPanelEmbed() {
+export function ticketPanelEmbed(guildId) {
   return new EmbedBuilder()
-    .setColor(EMBED_COLOR)
+    .setColor(brandColor(guildId))
     .setTitle('Create a ticket')
     .setDescription(
       'Click the button below to open a ticket. Choose **Help**, **Team Application**, or **Order**.'
@@ -84,9 +98,9 @@ export function confirmTicketButtonRow(type) {
  * Full ticket panel components (embed + button) for posting in channel.
  * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
  */
-export function getTicketPanelPayload() {
+export function getTicketPanelPayload(guildId) {
   return {
-    embeds: [ticketPanelEmbed()],
+    embeds: [ticketPanelEmbed(guildId)],
     components: [createTicketButtonRow()],
   };
 }

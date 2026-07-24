@@ -9,7 +9,10 @@ import {
   saveTicketField,
   updateTicketDeadline,
   setFreelancerChannelId,
+  setQuoteChannelDueAt,
+  getPendingQuoteChannelTickets,
 } from '../TicketRepository.js';
+import { getSetting } from '../../../core/GuildConfig.js';
 import {
   orderBudgetSelectRow,
   getOrderSummaryPayload,
@@ -213,11 +216,37 @@ const QUOTE_CHANNEL_DELAY_MS = 60_000;
 
 /**
  * Schedule creation of freelancer quote channel 60s after summary (STEP 4).
+ * Persists the due time so a restart within the window can recover the timer.
  * @param {import('discord.js').Client} client
  * @param {string} ticketId
  */
 export function scheduleQuoteChannelCreation(client, ticketId) {
+  setQuoteChannelDueAt(ticketId, Date.now() + QUOTE_CHANNEL_DELAY_MS);
   setTimeout(() => createQuoteChannelForTicket(client, ticketId), QUOTE_CHANNEL_DELAY_MS);
+}
+
+/**
+ * On startup, re-arm any pending quote-channel timers that were lost on the last shutdown.
+ * Overdue tickets are created immediately; others are rescheduled for their remaining time.
+ * @param {import('discord.js').Client} client
+ */
+export function recoverPendingQuoteChannels(client) {
+  let pending;
+  try {
+    pending = getPendingQuoteChannelTickets();
+  } catch (err) {
+    logger.error('recoverPendingQuoteChannels query failed', { error: err.message });
+    return;
+  }
+  for (const ticket of pending) {
+    const remaining = (ticket.quote_channel_due_at ?? 0) - Date.now();
+    if (remaining <= 0) {
+      createQuoteChannelForTicket(client, ticket.id);
+    } else {
+      setTimeout(() => createQuoteChannelForTicket(client, ticket.id), remaining);
+    }
+  }
+  if (pending.length) logger.info('Recovered pending quote-channel timers', { count: pending.length });
 }
 
 /**
@@ -229,14 +258,14 @@ export async function createQuoteChannelForTicket(client, ticketId) {
   try {
     const ticket = getTicketById(ticketId);
     if (!ticket || ticket.freelancer_channel_id) return;
-    const categoryId = process.env.CATEGORY_QUOTES;
-    if (!categoryId) {
-      logger.warn('CATEGORY_QUOTES not set — quote channel not created');
-      return;
-    }
     const clientChannel = await client.channels.fetch(ticket.client_channel_id).catch(() => null);
     if (!clientChannel?.guild) return;
     const guild = clientChannel.guild;
+    const categoryId = getSetting(guild.id, 'category_quotes');
+    if (!categoryId) {
+      logger.warn('category_quotes not configured — quote channel not created', { guildId: guild.id });
+      return;
+    }
     let clientName = 'client';
     try {
       const member = await guild.members.fetch(ticket.client_id).catch(() => null);
@@ -260,6 +289,7 @@ export async function createQuoteChannelForTicket(client, ticketId) {
       permissionOverwrites: overwrites,
     });
     setFreelancerChannelId(ticketId, channel.id);
+    setQuoteChannelDueAt(ticketId, null); // timer fulfilled — clear so recovery skips it
     const fields = getTicketFields(ticketId);
     await channel.send({
       embeds: [orderSummaryEmbedForFreelancers(fields)],

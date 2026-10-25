@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   quote_counter_msg_id TEXT,       -- legacy (2026-10-26, replaced by the order card), unused
   order_card_msg_id TEXT,          -- the order card in the client channel, edited on every change
   completed_at INTEGER,            -- epoch ms when the order was marked complete (freelancer stats)
+  stale_reminded_at INTEGER,       -- epoch ms of the "your form is not finished" reminder (hygiene)
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

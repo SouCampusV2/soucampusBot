@@ -64,6 +64,7 @@ function runMigrations(db) {
   addTicketColumn('quote_counter_msg_id', 'TEXT');
   addTicketColumn('order_card_msg_id', 'TEXT');
   addTicketColumn('completed_at', 'INTEGER');
+  addTicketColumn('stale_reminded_at', 'INTEGER');
   // Orders completed before completed_at existed: use the creation time as a stand-in.
   db.prepare(
     "UPDATE tickets SET completed_at = CAST(strftime('%s', created_at) AS INTEGER) * 1000 WHERE completed = 1 AND completed_at IS NULL"

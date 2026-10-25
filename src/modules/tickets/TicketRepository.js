@@ -187,6 +187,22 @@ export function getTicketsDueForDeletion(nowMs) {
 }
 
 /**
+ * Orders still in the form stage (hygiene job filters by age in JS — created_at is text).
+ * @returns {object[]}
+ */
+export function getTicketsInForm() {
+  return query("SELECT * FROM tickets WHERE type = 'order' AND status = 'form'");
+}
+
+/**
+ * @param {string} ticketId
+ * @param {number} atMs
+ */
+export function setStaleRemindedAt(ticketId, atMs) {
+  run('UPDATE tickets SET stale_reminded_at = ? WHERE id = ?', [atMs, ticketId]);
+}
+
+/**
  * Tickets that still owe a quote channel (due time set, channel not yet created).
  * Used on startup to recover pending timers after a restart.
  * @returns {object[]}

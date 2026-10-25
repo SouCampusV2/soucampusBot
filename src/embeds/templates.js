@@ -708,6 +708,63 @@ export function orderCardEmbed(ticket, fields, { quotes, declined, agreedPrice }
   return embed;
 }
 
+// --- Manager reports (/orders, /stats) ---
+
+const TYPE_ICON = { order: '🧱', help: '❓', application: '📝' };
+
+/**
+ * /orders: one line per open ticket, overdue first. Capped to fit an embed; the count is exact.
+ * @param {(object & { overdue: boolean })[]} tickets
+ * @param {string | null} status
+ * @param {string} guildId
+ */
+export function ordersOverviewEmbed(tickets, status, guildId) {
+  const lines = tickets.map((t) => {
+    const deadline = t.deadline ? ` · due ${t.deadline}` : '';
+    const flag = t.overdue ? '⚠️ **OVERDUE** ' : '';
+    return `${flag}${TYPE_ICON[t.type] ?? '🎫'} <#${t.client_channel_id}> · ${t.status} · <@${t.client_id}>${deadline}`;
+  });
+  let description = '';
+  let shown = 0;
+  for (const line of lines) {
+    if (description.length + line.length + 1 > 3900) break;
+    description += `${line}\n`;
+    shown++;
+  }
+  if (shown < lines.length) description += `…and ${lines.length - shown} more — filter with \`status\`.`;
+  const overdue = tickets.filter((t) => t.overdue).length;
+  return new EmbedBuilder()
+    .setColor(brandColor(guildId))
+    .setTitle(`Open tickets${status ? ` · ${status}` : ''}: ${tickets.length}${overdue ? ` (${overdue} overdue)` : ''}`)
+    .setDescription(description || 'Nothing open. 🎉')
+    .setTimestamp();
+}
+
+/**
+ * /stats embed.
+ * @param {ReturnType<import('../modules/tickets/Reports.js').computeStats>} s
+ * @param {number} days
+ * @param {string} guildId
+ */
+export function statsEmbed(s, days, guildId) {
+  const money = s.avgPrice != null ? `€${s.avgPrice}` : '—';
+  const rating = s.avgRating != null ? `⭐ ${s.avgRating} (${s.reviews})` : '—';
+  return new EmbedBuilder()
+    .setColor(brandColor(guildId))
+    .setTitle(`Last ${days} days`)
+    .addFields(
+      { name: 'Orders opened', value: String(s.orders), inline: true },
+      { name: 'Paid', value: `${s.paid} (${s.conversion}%)`, inline: true },
+      { name: 'Delivered', value: String(s.delivered), inline: true },
+      { name: 'Avg agreed price', value: money, inline: true },
+      { name: 'Reviews', value: rating, inline: true },
+      { name: 'Help tickets', value: String(s.help), inline: true },
+      { name: 'Team applications', value: `${s.applications} (${s.accepted} accepted)`, inline: true }
+    )
+    .setFooter({ text: 'Counted by when the ticket was opened. Paid = payment confirmed by a manager.' })
+    .setTimestamp();
+}
+
 // --- Team application ---
 
 /** "Fill application" / "Edit application" button (applicant). customId: start_application:ticketId */

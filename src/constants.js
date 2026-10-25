@@ -96,6 +96,11 @@ export const APPLICATION_FIELDS = {
 /** A closed ticket's channel is deleted this long after closing, unless a manager keeps it. */
 export const CHANNEL_DELETE_DELAY_MS = 48 * 60 * 60 * 1000;
 
+/** An order still in the form stage this long after opening gets a reminder… */
+export const FORM_REMIND_AFTER_MS = 48 * 60 * 60 * 1000;
+/** …and is closed this long after the reminder if still unfinished. */
+export const FORM_CLOSE_AFTER_REMIND_MS = 24 * 60 * 60 * 1000;
+
 /** How often the cleanup job looks for channels due for deletion. */
 export const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 

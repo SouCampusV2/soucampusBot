@@ -5,6 +5,8 @@
 import { Events } from 'discord.js';
 import { registerHandler, registerCommandHandler } from '../../core/InteractionRouter.js';
 import { inviteCommandData, handleInviteCommand } from '../../commands/inviteCommand.js';
+import { ordersCommandData, handleOrdersCommand } from '../../commands/ordersCommand.js';
+import { statsCommandData, handleStatsCommand } from '../../commands/statsCommand.js';
 import { setupCommandData, handleSetupCommand } from '../../commands/setupCommand.js';
 import { handleCreateTicket } from '../../interactions/handlers/createTicket.js';
 import { handleSelectTicketType } from '../../interactions/handlers/selectTicketType.js';
@@ -80,7 +82,7 @@ async function postLegacyPanel(client) {
  * @param {import('discord.js').Client} client
  */
 async function registerSlashCommands(client) {
-  const commands = [inviteCommandData, setupCommandData];
+  const commands = [inviteCommandData, setupCommandData, ordersCommandData, statsCommandData];
   const guildId = process.env.GUILD_ID;
   try {
     if (guildId) {
@@ -102,6 +104,8 @@ async function registerSlashCommands(client) {
 export function registerTicketModule(client) {
   registerCommandHandler('invite', handleInviteCommand);
   registerCommandHandler('setup', handleSetupCommand);
+  registerCommandHandler('orders', handleOrdersCommand);
+  registerCommandHandler('stats', handleStatsCommand);
   registerHandler(PREFIX.CREATE_TICKET, handleCreateTicket);
   registerHandler(PREFIX.SELECT_TICKET_TYPE, handleSelectTicketType);
   registerHandler(PREFIX.CONFIRM_TICKET, handleConfirmTicket);

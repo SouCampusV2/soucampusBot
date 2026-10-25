@@ -12,11 +12,19 @@ confirmed by a manager → delivery → review.**
 
 - Ticket panel with 3 ticket types: **Order**, **Help**, **Team Application**
 - Order form in modals (need, deadline, references, size, theme, version,
-  details, budget) with an editable summary
+  details, budget in €) with an editable summary
 - Private quote channel for freelancers; quotes forwarded to the client with
-  accept / discuss (private thread) / decline-with-reason buttons
+  accept / discuss (private thread) / decline-with-reason buttons, and a live
+  "N quotes · M not interested" counter
 - Message relay between freelancer and client
-- Manual payment confirmation, daily deadline reminders, completion and reviews
+- Manual payment confirmation, deadline reminders (dates parsed from
+  `25.12.2026`, `in 2 weeks`…), completion and one review per order
+- Team applications: applicant form, manager Accept (gives the Freelancer
+  role) or Reject with a reason
+- Closing any ticket: archived read-only, deleted after 48 hours unless a
+  manager keeps it
+- Explicit ticket lifecycle (one status column, one transition table), safe
+  against double clicks
 - Works on several servers at once; each server is configured with `/setup`
 - `/invite @user` for managers
 

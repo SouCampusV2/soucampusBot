@@ -22,26 +22,31 @@ src/core/
 src/modules/tickets/
   TicketModule.js            регистрирует ВСЕ обработчики и команды; задачи на ready
   TicketRepository.js        SQL по tickets / ticket_fields
+  TicketStatus.js            СТАДИЯ ТИКЕТА: STATUS, таблица переходов, transitionTicket, closeRefusal
   flows/OrderFlow.js         форма заказа, таймер канала квот и его восстановление
-  flows/HelpFlow.js, ApplicationFlow.js     🔴 заглушки
+  flows/ApplicationFlow.js   заявка в команду: форма, Accept/Reject (обработчики регистрируются прямо отсюда)
 src/modules/proposals/ProposalRepository.js SQL по proposals + quoteRefusal (можно ли квотировать)
+src/modules/proposals/QuoteCounter.js       живой счётчик «N quotes · M not interested» у клиента
 src/modules/reviews/ReviewRepository.js     SQL по reviews (один отзыв на тикет)
 src/interactions/handlers/   один файл = один префикс customId
 src/commands/                /setup, /invite (данные команды + обработчик)
 src/embeds/templates.js      все эмбеды, кнопки, модалки
-src/jobs/deadlineJob.js      cron 09:00
+src/jobs/deadlineJob.js      cron 09:00 BOT_TIMEZONE: напоминания о дедлайне
+src/jobs/cleanupJob.js       раз в 10 минут: удалить каналы закрытых тикетов, чьё время пришло
 src/utils/permissions.js     isManagerOrAdmin, ensureTicketClient — ВСЕ проверки «кто ты»
 src/utils/replies.js         replyError — ответ об ошибке в любом состоянии interaction
 src/utils/panel.js           ensurePanel — панель без дублей
+src/utils/channels.js        archiveChannel / archiveQuoteChannel — в архив и только чтение
+src/utils/dates.js           parseDeadline — текст человека → 'YYYY-MM-DD'
 src/utils/                   channelNaming, rateLimit, logger, relayMessageStore
 database/schema.sql          таблицы для свежей базы
 tests/                       node --test; helpers/fakes.js (фейки Discord), helpers/db.js (база в памяти)
 scripts/check-syntax.js      npm run check
 ```
 
-Пустые заглушки `PaymentModule`, `ReviewModule`, `ProposalModule`,
-`DeadlineChecker`, `validator.js` — остались от исходной структуры; логика
-живёт в обработчиках. Решение в фазе 2: удалить или наполнить.
+Пустые заглушки из исходной структуры (`PaymentModule`, `ReviewModule`,
+`ProposalModule`, `DeadlineChecker`, `HelpFlow`, `validator.js`) удалены
+2026-10-26: логика живёт в обработчиках и репозиториях.
 
 ## Поток одного нажатия
 
@@ -83,12 +88,22 @@ handler(interaction, parts)
 | `action_log` | журнал действий | `actor_id`, `action`, `detail` |
 | `guild_config` | настройки `/setup` | по колонке на настройку |
 
-**Состояние заказа сейчас размазано** по флагам (`assigned_freelancer_id`,
-`payment_confirmed`, `completed`). Шаг формы считается числом строк в
-`ticket_fields` (`getCurrentStep`) — хрупко. План фазы 2: одна колонка
-`status` (`draft → open → assigned → paid → completed → closed`) с
-разрешёнными переходами в одной функции — тот же урок, что `products.state`
-в SouCampus builds.
+**Стадия тикета — одна колонка `status`** (с 2026-10-26), переходы — таблица
+`TRANSITIONS` в `TicketStatus.js`. Переход — один условный
+`UPDATE ... WHERE status IN (разрешённые)`: проверка и запись неделимы, так
+что двойной клик физически не проводит заказ дважды. Тот же урок, что
+`products.state` в SouCampus builds. `payment_confirmed`/`completed` —
+наследие: пишутся вместе со статусом (чтобы старый код мог открыть ту же
+базу), но не читаются. `assigned_freelancer_id` — данные (кто), не стадия.
+
+`tickets.deadline` — только `YYYY-MM-DD` или NULL; что ввёл клиент — в
+`ticket_fields`. `channel_delete_at` — когда удалить канал закрытого тикета
+(NULL = хранить). `quote_counter_msg_id` — сообщение-счётчик у клиента.
+
+**Миграции** (`runMigrations`, на каждом старте, идемпотентно): колонки →
+`normalizeDeadlines` (старый текст → дата, относительный — от дня создания)
+→ `backfillStatus` (статус из старых флагов) → индексы. Обе проверены на копии
+живой базы.
 
 ## Настройки сервера
 
@@ -100,7 +115,8 @@ handler(interaction, parts)
 | Что | Где | Переживает перезапуск |
 |---|---|---|
 | Канал квот через 60 с | `scheduleQuoteChannelCreation` | 🟢 да: `quote_channel_due_at` + `recoverPendingQuoteChannels` на `ready` |
-| Напоминание о дедлайне | `deadlineJob.js`, cron `0 9 * * *` | 🟢 cron перезапускается сам; 🔴 дедлайн-текст не читается |
+| Напоминание о дедлайне | `deadlineJob.js`, cron `0 9 * * *` в `BOT_TIMEZONE` | 🟢 cron перезапускается сам |
+| Удаление каналов закрытых тикетов | `cleanupJob.js`, обход базы раз в 10 минут + на старте | 🟢 время в `channel_delete_at`; упавшее удаление повторится |
 | Лимит тикетов 60 с | `rateLimit.js`, `Map` в памяти | 🔴 нет (и не страшно) |
 
 ## Гонки
@@ -116,10 +132,14 @@ handler(interaction, parts)
 |---|---|---|---|
 | Принять / отклонить квоту, тред | клиент | `ticket.client_id` | 🟢 |
 | Отзыв | клиент, заказ завершён, один раз | `submitReview(Modal).js` + `getReviewByTicketId` | 🟡 тест есть, Discord — нет |
+| Закрыть тикет | менеджер всегда; владелец — по стадии | `closeRefusal` + `transitionTicket(CLOSED)` | 🟡 тест есть |
+| Keep archived | менеджер | `isManagerOrAdmin` | 🟡 тест есть |
+| Заявка: заполнить/править | заявитель, пока не решено | `ensureTicketClient` + статус `open` | 🟡 тест есть |
+| Заявка: Accept / Reject (кнопка И модалка) | менеджер, один раз | `isManagerOrAdmin` + переход | 🟡 тест есть |
 | Форма заказа, правка | клиент | `ensureTicketClient` во всех 7 обработчиках | 🟡 тест есть |
 | Квота | фрилансер, пока нет исполнителя, одна ожидающая | `quoteRefusal` (кнопка И модалка) | 🟡 тест есть |
 | Сообщение relay | кто видит канал | — (канал видят только участники) | 🟡 |
-| Оплата, завершение, дедлайн, `/invite` | менеджер | `isManagerOrAdmin`: Administrator или роль из `/setup` | 🟡 тест есть |
+| Оплата, завершение, дедлайн (кнопка И модалка), `/invite` | менеджер | `isManagerOrAdmin`: Administrator или роль из `/setup` | 🟡 тест есть |
 | `/setup` | админ | `setDefaultMemberPermissions(Administrator)` | 🟢 |
 
 **Менеджер по имени роли.** Роль «Manager»/«Admin» по имени работает, только
@@ -139,3 +159,6 @@ handler(interaction, parts)
 | Что делает бот на старте | `TicketModule.js` → `ClientReady` |
 | Ошибки процесса и шлюза | `index.js` (`unhandledRejection`), `Bot.js` (`Events.Error`) |
 | Тест на обработчик | `tests/*.test.js`, фейки — `tests/helpers/fakes.js` |
+| Новая стадия / переход тикета | `TicketStatus.js` → `TRANSITIONS` (+ `SIDE_EFFECTS`, `CLIENT_CLOSABLE`) |
+| Формат дедлайна | `utils/dates.js` → `parseDeadline` + `tests/dates.test.js` |
+| Заявка в команду | `flows/ApplicationFlow.js`, поля — `APPLICATION_FIELDS` в `constants.js` |

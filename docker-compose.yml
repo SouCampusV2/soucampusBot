@@ -1,0 +1,27 @@
+# BoCampus on the shared VPS (n8n, the site's nginx and later souc-scanner run next to it).
+# The bot only makes outbound connections to Discord: no ports, no traefik labels.
+services:
+  bot:
+    build: .
+    image: bocampus:latest
+    container_name: bocampus
+    restart: unless-stopped
+    # Run as the host user that owns ./data (deploy = 1001 on the VPS), so SQLite can write there.
+    # Set BOT_UID/BOT_GID in .env; compose reads that file for ${...} too.
+    user: "${BOT_UID:-1000}:${BOT_GID:-1000}"
+    env_file: .env
+    environment:
+      DB_PATH: /app/data/bot.db
+      BACKUP_DIR: /app/data/backups
+      # Heap cap below the container limit, so Node collects garbage before the kernel kills it.
+      NODE_OPTIONS: --max-old-space-size=192
+    volumes:
+      - ./data:/app/data
+    # Hard cap: a leak in the bot must not starve ClamAV/n8n, and their peaks must not starve us
+    # (docs/ROADMAP.md → phase 5, memory budget). restart: unless-stopped brings it back if killed.
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

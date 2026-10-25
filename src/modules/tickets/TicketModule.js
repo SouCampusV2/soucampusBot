@@ -44,6 +44,7 @@ import {
 } from './flows/ApplicationFlow.js';
 import { scheduleDeadlineJob } from '../../jobs/deadlineJob.js';
 import { scheduleCleanupJob } from '../../jobs/cleanupJob.js';
+import { scheduleBackupJob } from '../../jobs/backupJob.js';
 import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
 import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
@@ -138,6 +139,7 @@ export function registerTicketModule(client) {
     postLegacyPanel(client);
     scheduleDeadlineJob(client);
     scheduleCleanupJob(client);
+    scheduleBackupJob();
     recoverPendingQuoteChannels(client);
     await registerSlashCommands(client);
   });

@@ -35,6 +35,13 @@ import { handleSubmitReview } from '../../interactions/handlers/submitReview.js'
 import { handleSubmitReviewModal } from '../../interactions/handlers/submitReviewModal.js';
 import { handleCloseTicket } from '../../interactions/handlers/closeTicket.js';
 import { handleKeepChannel } from '../../interactions/handlers/keepChannel.js';
+import {
+  handleStartApplication,
+  handleApplicationModal,
+  handleAcceptApplication,
+  handleRejectApplication,
+  handleRejectApplicationModal,
+} from './flows/ApplicationFlow.js';
 import { scheduleDeadlineJob } from '../../jobs/deadlineJob.js';
 import { scheduleCleanupJob } from '../../jobs/cleanupJob.js';
 import { ensurePanel } from '../../utils/panel.js';
@@ -121,6 +128,11 @@ export function registerTicketModule(client) {
   registerHandler(PREFIX.SUBMIT_REVIEW_MODAL, handleSubmitReviewModal);
   registerHandler(PREFIX.CLOSE_TICKET, handleCloseTicket);
   registerHandler(PREFIX.KEEP_CHANNEL, handleKeepChannel);
+  registerHandler(PREFIX.START_APPLICATION, handleStartApplication);
+  registerHandler(PREFIX.APPLICATION_MODAL, handleApplicationModal);
+  registerHandler(PREFIX.ACCEPT_APPLICATION, handleAcceptApplication);
+  registerHandler(PREFIX.REJECT_APPLICATION, handleRejectApplication);
+  registerHandler(PREFIX.REJECT_APPLICATION_MODAL, handleRejectApplicationModal);
 
   client.once(Events.ClientReady, async () => {
     postLegacyPanel(client);

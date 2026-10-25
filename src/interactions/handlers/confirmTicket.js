@@ -3,11 +3,12 @@
  */
 
 import { ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
-import { getOrderChannelName } from '../../utils/channelNaming.js';
+import { getTicketChannelName } from '../../utils/channelNaming.js';
 import { getManagerRole } from '../../utils/permissions.js';
 import { getSetting } from '../../core/GuildConfig.js';
 import { createTicket } from '../../modules/tickets/TicketRepository.js';
 import { startOrderFlow } from '../../modules/tickets/flows/OrderFlow.js';
+import { startApplicationFlow } from '../../modules/tickets/flows/ApplicationFlow.js';
 import { closeTicketButtonRow } from '../../embeds/templates.js';
 import { tryConsumeTicketCreate } from '../../utils/rateLimit.js';
 import { replyError } from '../../utils/replies.js';
@@ -54,7 +55,7 @@ export async function handleConfirmTicket(interaction, parts) {
 
   const member = interaction.member;
   const displayName = member?.user?.username || interaction.user.username || 'user';
-  const channelName = getOrderChannelName(displayName);
+  const channelName = getTicketChannelName(type, displayName);
 
   try {
     // Creating a channel and posting into it can take longer than Discord's 3-second answer window.
@@ -90,10 +91,9 @@ export async function handleConfirmTicket(interaction, parts) {
       components: [closeTicketButtonRow(ticketId)],
     });
 
-    // CHECKPOINT: Order dialog (STEP 2) — only for order type; starts first question.
-    if (type === TICKET_TYPES.ORDER) {
-      await startOrderFlow(channel, ticketId);
-    }
+    // Order and application tickets continue with their form; help is a plain conversation.
+    if (type === TICKET_TYPES.ORDER) await startOrderFlow(channel, ticketId);
+    if (type === TICKET_TYPES.APPLICATION) await startApplicationFlow(channel, ticketId);
 
     await interaction.editReply({
       content: `Ticket created: <#${channel.id}>`,

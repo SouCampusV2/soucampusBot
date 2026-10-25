@@ -72,6 +72,25 @@ export const PREFIX = {
   CLOSE_TICKET: 'close_ticket',
   /** Manager: keep a closed ticket's channel instead of deleting it — customId keep_channel:ticketId */
   KEEP_CHANNEL: 'keep_channel',
+  /** Applicant: open (or edit) the team application form — customId start_application:ticketId */
+  START_APPLICATION: 'start_application',
+  /** Team application modal submit — customId application_modal:ticketId */
+  APPLICATION_MODAL: 'application_modal',
+  /** Manager: accept an application (gives the Freelancer role) — customId accept_application:ticketId */
+  ACCEPT_APPLICATION: 'accept_application',
+  /** Manager: reject an application, opens the reason modal — customId reject_application:ticketId */
+  REJECT_APPLICATION: 'reject_application',
+  /** Reject reason modal submit — customId reject_application_modal:ticketId */
+  REJECT_APPLICATION_MODAL: 'reject_application_modal',
+};
+
+/** Team application form: field key (in ticket_fields, prefixed app_) -> modal label. Discord allows 5 inputs. */
+export const APPLICATION_FIELDS = {
+  about: 'About you',
+  experience: 'Building experience',
+  specialty: 'Styles / specialty',
+  timezone: 'Timezone',
+  portfolio: 'Portfolio links',
 };
 
 /** A closed ticket's channel is deleted this long after closing, unless a manager keeps it. */

@@ -12,7 +12,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { PREFIX, TICKET_TYPES, ORDER_QUESTION_KEYS, ORDER_BUDGET_OPTIONS } from '../constants.js';
+import { PREFIX, TICKET_TYPES, ORDER_BUDGET_OPTIONS, APPLICATION_FIELDS } from '../constants.js';
 import { getSetting } from '../core/GuildConfig.js';
 
 const EMBED_COLOR = 0x5865f2; // Discord blurple / brand (default)
@@ -613,6 +613,86 @@ export function deadlineWarning(text, date) {
     `\n⚠️ We could not read "${text.slice(0, 50)}" as a date, so there will be no deadline reminders. ` +
     'Use e.g. `25.12.2026` or `in 2 weeks` (Edit Order) if you want them.'
   );
+}
+
+// --- Team application ---
+
+/** "Fill application" / "Edit application" button (applicant). customId: start_application:ticketId */
+export function startApplicationButtonRow(ticketId, label = 'Fill application') {
+  const button = new ButtonBuilder()
+    .setCustomId(`${PREFIX.START_APPLICATION}:${ticketId}`)
+    .setLabel(label)
+    .setStyle(ButtonStyle.Primary);
+  return new ActionRowBuilder().addComponents(button);
+}
+
+/**
+ * Team application modal, prefilled when editing. customId: application_modal:ticketId
+ * @param {string} ticketId
+ * @param {{ field_name: string, field_value: string }[]} fields
+ * @returns {ModalBuilder}
+ */
+export function buildApplicationModal(ticketId, fields = []) {
+  const valueByKey = Object.fromEntries(fields.map((f) => [f.field_name, f.field_value || '']));
+  const modal = new ModalBuilder().setCustomId(`${PREFIX.APPLICATION_MODAL}:${ticketId}`).setTitle('Team application');
+  const paragraphs = new Set(['about', 'experience', 'portfolio']);
+  const required = new Set(['about', 'portfolio']);
+  for (const [key, label] of Object.entries(APPLICATION_FIELDS)) {
+    const input = new TextInputBuilder()
+      .setCustomId(`field_${key}`)
+      .setLabel(label)
+      .setStyle(paragraphs.has(key) ? TextInputStyle.Paragraph : TextInputStyle.Short)
+      .setValue((valueByKey[`app_${key}`] || '').slice(0, 4000))
+      .setRequired(required.has(key));
+    if (key === 'portfolio') input.setPlaceholder('Links to screenshots, Planet Minecraft, a website…');
+    if (key === 'timezone') input.setPlaceholder('e.g. UTC+2');
+    modal.addComponents(new ActionRowBuilder().addComponents(input));
+  }
+  return modal;
+}
+
+/**
+ * Application summary: embed + applicant's Edit button + managers' Accept / Reject.
+ * @param {{ field_name: string, field_value: string }[]} fields
+ * @param {string} ticketId
+ * @param {string} applicantId
+ * @param {string} [guildId]
+ */
+export function getApplicationSummaryPayload(fields, ticketId, applicantId, guildId) {
+  const valueByKey = Object.fromEntries(fields.map((f) => [f.field_name, f.field_value || '']));
+  const embed = new EmbedBuilder()
+    .setColor(brandColor(guildId))
+    .setTitle('Team application')
+    .setDescription(`Applicant: <@${applicantId}>`)
+    .setTimestamp();
+  for (const [key, label] of Object.entries(APPLICATION_FIELDS)) {
+    embed.addFields({ name: label, value: (valueByKey[`app_${key}`] || '-').slice(0, 1024), inline: false });
+  }
+  const decision = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIX.ACCEPT_APPLICATION}:${ticketId}`).setLabel('Accept').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`${PREFIX.REJECT_APPLICATION}:${ticketId}`).setLabel('Reject').setStyle(ButtonStyle.Danger)
+  );
+  return {
+    content: 'Managers: review the application below.',
+    embeds: [embed],
+    components: [startApplicationButtonRow(ticketId, 'Edit application'), decision],
+  };
+}
+
+/** Reason modal for rejecting an application. customId: reject_application_modal:ticketId */
+export function buildRejectApplicationModal(ticketId) {
+  return new ModalBuilder()
+    .setCustomId(`${PREFIX.REJECT_APPLICATION_MODAL}:${ticketId}`)
+    .setTitle('Reject application')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('reject_reason')
+          .setLabel('Reason (sent to the applicant)')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+      )
+    );
 }
 
 // --- Closing tickets ---

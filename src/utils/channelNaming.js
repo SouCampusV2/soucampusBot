@@ -16,13 +16,17 @@ function sanitizeChannelNamePart(username) {
     .slice(0, 80) || 'user';
 }
 
+/** Channel name prefix per ticket type, so staff can tell tickets apart in the channel list. */
+const TICKET_CHANNEL_PREFIX = { order: 'order', help: 'help', application: 'apply' };
+
 /**
- * Order/help/application channel: order-username (category ACTIVE ORDERS).
+ * Ticket channel in ACTIVE ORDERS: order-username / help-username / apply-username.
+ * @param {string} type - ticket type
  * @param {string} username - Discord username or displayName
  * @returns {string}
  */
-export function getOrderChannelName(username) {
-  return `order-${sanitizeChannelNamePart(username)}`;
+export function getTicketChannelName(type, username) {
+  return `${TICKET_CHANNEL_PREFIX[type] ?? 'ticket'}-${sanitizeChannelNamePart(username)}`;
 }
 
 /**

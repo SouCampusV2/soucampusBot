@@ -40,7 +40,12 @@ export function fakeMember(guild, { id = nextId(), roles = [], admin = false, na
     guild,
     displayName,
     user: { id, username: displayName, displayName },
-    roles: { cache: new Collection(roles.map((r) => [r.id, r])) },
+    roles: {
+      cache: new Collection(roles.map((r) => [r.id, r])),
+      async add(roleId) {
+        member.roles.cache.set(roleId, guild.roles.cache.get(roleId) ?? { id: roleId });
+      },
+    },
     permissions: { has: (perm) => admin && perm === PermissionFlagsBits.Administrator },
   };
   guild._members.set(id, member);

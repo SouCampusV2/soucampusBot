@@ -14,6 +14,8 @@ export const logger = winston.createLogger({
     winston.format.json()
   ),
   defaultMeta: { service: 'ticket-bot' },
+  // node --test sets NODE_TEST_CONTEXT in test processes; keep test output readable.
+  silent: Boolean(process.env.NODE_TEST_CONTEXT),
   transports: [
     new winston.transports.Console({
       format: winston.format.combine(

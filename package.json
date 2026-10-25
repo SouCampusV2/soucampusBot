@@ -1,15 +1,17 @@
 {
-  "name": "ticket-bot",
+  "name": "bocampus",
   "version": "1.0.0",
-  "description": "Discord ticket bot for managing client orders",
+  "description": "Discord bot by SouCampus for taking Minecraft build orders",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node --test",
+    "check": "node scripts/check-syntax.js"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",

@@ -1,5 +1,7 @@
 # BoCampus
 
+[![CI](https://github.com/SouCampusV2/soucampusBot/actions/workflows/ci.yml/badge.svg)](https://github.com/SouCampusV2/soucampusBot/actions/workflows/ci.yml)
+
 Discord bot by **SouCampus** for taking Minecraft build orders, from the first
 ticket to the client's review:
 
@@ -23,20 +25,31 @@ Status of every feature: [`docs/SPEC.md`](docs/SPEC.md). Plan:
 
 ## Tech stack
 
-- [discord.js](https://discord.js.org/) v14, Node.js 18+
+- [discord.js](https://discord.js.org/) v14, Node.js 20+
 - SQLite (`better-sqlite3`)
 - `node-cron`, `winston`, `dotenv`
+- Tests on the built-in `node:test` runner, CI on GitHub Actions
+
+No privileged gateway intents: the whole flow runs on buttons, select menus and
+modals, so the bot never reads message content or the member list.
 
 ## Setup
 
 1. `npm install`
 2. `cp .env.example .env` and set `DISCORD_TOKEN`, `CLIENT_ID`
    (and `GUILD_ID` for instant command registration on a test server).
-3. In the Developer Portal enable the **Server Members** intent.
-4. `npm start`
+3. `npm start`
 5. On the server, as an admin: `/setup active_orders`, `/setup quotes`,
    `/setup archived`, `/setup reviews`, `/setup manager_role`,
    `/setup freelancer_role`, then `/setup panel`. Check with `/setup view`.
+
+## Development
+
+```bash
+npm run dev     # restart on file changes
+npm test        # handler tests with fake Discord objects and an in-memory database
+npm run check   # syntax check of every file
+```
 
 ## Project structure
 
@@ -47,6 +60,7 @@ src/interactions/handlers/    one file per button / modal
 src/commands/                 /setup, /invite
 src/embeds/templates.js       all embeds, buttons and modals
 database/schema.sql           schema for a fresh database
+tests/                        node:test suites + fakes of discord.js objects
 docs/                         rules, spec, architecture, roadmap, changelog
 ```
 

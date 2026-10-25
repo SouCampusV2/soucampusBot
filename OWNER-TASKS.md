@@ -10,9 +10,9 @@
    ID сервера → `GUILD_ID` в `.env` (команды появятся мгновенно).
 2. **Второй аккаунт Discord** для роли клиента/фрилансера — без него
    половину `TEMP.md` не проверить.
-3. **Developer Portal → Bot → Privileged Gateway Intents:** сейчас нужен
-   только **Server Members** (пока интент не убран в фазе 1). Message Content
-   **не нужен** — можно выключить.
+3. **Developer Portal → Bot → Privileged Gateway Intents:** с 25.10 бот не
+   просит ни одного привилегированного интента. **Server Members** и
+   **Message Content** можно выключить (проверить по `TEMP.md` § 5).
 4. **Ответить на вопросы** в `docs/ROADMAP.md` → «Вопросы к владельцу».
 5. **Позже (фаза 5):** решить, где бот живёт 24/7 (Hostinger VPS?).
 

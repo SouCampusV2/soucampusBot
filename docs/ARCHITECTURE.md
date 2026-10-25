@@ -24,13 +24,19 @@ src/modules/tickets/
   TicketRepository.js        SQL по tickets / ticket_fields
   flows/OrderFlow.js         форма заказа, таймер канала квот и его восстановление
   flows/HelpFlow.js, ApplicationFlow.js     🔴 заглушки
-src/modules/proposals/ProposalRepository.js SQL по proposals
+src/modules/proposals/ProposalRepository.js SQL по proposals + quoteRefusal (можно ли квотировать)
+src/modules/reviews/ReviewRepository.js     SQL по reviews (один отзыв на тикет)
 src/interactions/handlers/   один файл = один префикс customId
 src/commands/                /setup, /invite (данные команды + обработчик)
 src/embeds/templates.js      все эмбеды, кнопки, модалки
 src/jobs/deadlineJob.js      cron 09:00
-src/utils/                   permissions, channelNaming, rateLimit, logger, …
+src/utils/permissions.js     isManagerOrAdmin, ensureTicketClient — ВСЕ проверки «кто ты»
+src/utils/replies.js         replyError — ответ об ошибке в любом состоянии interaction
+src/utils/panel.js           ensurePanel — панель без дублей
+src/utils/                   channelNaming, rateLimit, logger, relayMessageStore
 database/schema.sql          таблицы для свежей базы
+tests/                       node --test; helpers/fakes.js (фейки Discord), helpers/db.js (база в памяти)
+scripts/check-syntax.js      npm run check
 ```
 
 Пустые заглушки `PaymentModule`, `ReviewModule`, `ProposalModule`,
@@ -47,10 +53,10 @@ InteractionRouter         prefix = "confirm_payment", parts = ["confirm_payment"
 handler(interaction, parts)
         ├─ проверка: кто нажал (isManagerOrAdmin / ticket.client_id)
         ├─ чтение/запись в базу (синхронно)
-        ├─ сообщения в каналы (await)
-        └─ interaction.update / reply
+        ├─ interaction.update / reply   ← в пределах 3 секунд
+        └─ сообщения в каналы (await)   ← медленное — после ответа
         │
-ошибка → роутер ловит, логирует, отвечает «Something went wrong.»
+ошибка → роутер ловит, логирует, replyError → «Something went wrong.»
 ```
 
 **Соглашение `customId`:** `префикс:ticketId[:доп]`, ≤ 100 символов.
@@ -109,11 +115,16 @@ handler(interaction, parts)
 | Действие | Кто может | Где проверка | Статус |
 |---|---|---|---|
 | Принять / отклонить квоту, тред | клиент | `ticket.client_id` | 🟢 |
-| Отзыв | клиент, заказ завершён | `submitReview(Modal).js` | 🟡 нет «один раз» |
-| Правка заказа | клиент | — | 🔴 |
-| Квота, сообщение | фрилансер | — (канал видят только они) | 🟡 |
-| Оплата, завершение, дедлайн, `/invite` | менеджер | `isManagerOrAdmin` | 🟡 имя роли |
+| Отзыв | клиент, заказ завершён, один раз | `submitReview(Modal).js` + `getReviewByTicketId` | 🟡 тест есть, Discord — нет |
+| Форма заказа, правка | клиент | `ensureTicketClient` во всех 7 обработчиках | 🟡 тест есть |
+| Квота | фрилансер, пока нет исполнителя, одна ожидающая | `quoteRefusal` (кнопка И модалка) | 🟡 тест есть |
+| Сообщение relay | кто видит канал | — (канал видят только участники) | 🟡 |
+| Оплата, завершение, дедлайн, `/invite` | менеджер | `isManagerOrAdmin`: Administrator или роль из `/setup` | 🟡 тест есть |
 | `/setup` | админ | `setDefaultMemberPermissions(Administrator)` | 🟢 |
+
+**Менеджер по имени роли.** Роль «Manager»/«Admin» по имени работает, только
+пока роль менеджера не задана через `/setup`. Как только задана — двойник с
+тем же именем ничего не даёт (тест `permissions.test.js`).
 
 ## Задача → файлы
 
@@ -126,3 +137,5 @@ handler(interaction, parts)
 | Канал квот | `OrderFlow.js` → `createQuoteChannelForTicket` |
 | Новая колонка | `schema.sql` + `Database.js` → `runMigrations` |
 | Что делает бот на старте | `TicketModule.js` → `ClientReady` |
+| Ошибки процесса и шлюза | `index.js` (`unhandledRejection`), `Bot.js` (`Events.Error`) |
+| Тест на обработчик | `tests/*.test.js`, фейки — `tests/helpers/fakes.js` |

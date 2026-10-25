@@ -26,6 +26,9 @@ confirmed by a manager → delivery → review.**
 - Live order card: one pinned message with the stage timeline, quotes,
   freelancer, agreed price, deadline and a price estimate from the map size
 - Freelancer track record on every quote (rating, reviews, delivered orders)
+- Ticket transcripts on close (.txt to the staff log and to the client)
+- Website bridge: with the client's consent, portfolio drafts and reviews go to
+  soucampus.online through a signed, retrying outbox — the owner publishes them
 - Manager tools: `/orders` (overdue first), `/stats` (funnel, conversion,
   prices, ratings), a staff log channel, reminders and auto-close for
   abandoned forms
@@ -44,8 +47,8 @@ Status of every feature: [`docs/SPEC.md`](docs/SPEC.md). Plan:
 - `node-cron`, `winston`, `dotenv`
 - Tests on the built-in `node:test` runner, CI on GitHub Actions
 
-No privileged gateway intents: the whole flow runs on buttons, select menus and
-modals, so the bot never reads message content or the member list.
+One privileged intent, Message Content, used only for ticket transcripts (the bot
+runs on a single server). The flow itself runs on buttons, select menus and modals.
 
 ## Setup
 

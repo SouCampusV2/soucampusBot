@@ -33,7 +33,10 @@ import { handleExtendDeadlineModal } from '../../interactions/handlers/extendDea
 import { handleMarkComplete } from '../../interactions/handlers/markComplete.js';
 import { handleSubmitReview } from '../../interactions/handlers/submitReview.js';
 import { handleSubmitReviewModal } from '../../interactions/handlers/submitReviewModal.js';
+import { handleCloseTicket } from '../../interactions/handlers/closeTicket.js';
+import { handleKeepChannel } from '../../interactions/handlers/keepChannel.js';
 import { scheduleDeadlineJob } from '../../jobs/deadlineJob.js';
+import { scheduleCleanupJob } from '../../jobs/cleanupJob.js';
 import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
 import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
@@ -116,10 +119,13 @@ export function registerTicketModule(client) {
   registerHandler(PREFIX.MARK_COMPLETE, handleMarkComplete);
   registerHandler(PREFIX.SUBMIT_REVIEW, handleSubmitReview);
   registerHandler(PREFIX.SUBMIT_REVIEW_MODAL, handleSubmitReviewModal);
+  registerHandler(PREFIX.CLOSE_TICKET, handleCloseTicket);
+  registerHandler(PREFIX.KEEP_CHANNEL, handleKeepChannel);
 
   client.once(Events.ClientReady, async () => {
     postLegacyPanel(client);
     scheduleDeadlineJob(client);
+    scheduleCleanupJob(client);
     recoverPendingQuoteChannels(client);
     await registerSlashCommands(client);
   });

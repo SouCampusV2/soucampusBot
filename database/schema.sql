@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   relay_client_msg_id TEXT,        -- last relay message id in client channel (for reply references)
   relay_freelancer_msg_id TEXT,    -- last relay message id in freelancer channel
   quote_channel_due_at INTEGER,    -- epoch ms: when quote channel should be created (STEP 4), NULL once done
+  channel_delete_at INTEGER,       -- epoch ms: when the closed ticket's channel is deleted, NULL = keep
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

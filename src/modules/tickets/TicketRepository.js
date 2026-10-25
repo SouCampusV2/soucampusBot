@@ -148,6 +148,24 @@ export function setQuoteChannelDueAt(ticketId, dueAtMs) {
 }
 
 /**
+ * Schedule (epoch ms) or cancel (null) deletion of a closed ticket's channel.
+ * @param {string} ticketId
+ * @param {number | null} deleteAtMs
+ */
+export function setChannelDeleteAt(ticketId, deleteAtMs) {
+  run('UPDATE tickets SET channel_delete_at = ? WHERE id = ?', [deleteAtMs, ticketId]);
+}
+
+/**
+ * Closed tickets whose channel deletion time has come.
+ * @param {number} nowMs
+ * @returns {object[]}
+ */
+export function getTicketsDueForDeletion(nowMs) {
+  return query('SELECT * FROM tickets WHERE channel_delete_at IS NOT NULL AND channel_delete_at <= ?', [nowMs]);
+}
+
+/**
  * Tickets that still owe a quote channel (due time set, channel not yet created).
  * Used on startup to recover pending timers after a restart.
  * @returns {object[]}

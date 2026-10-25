@@ -600,6 +600,40 @@ export function reviewEmbed(data, clientName, freelancerName, ticketId) {
     .setTimestamp();
 }
 
+// --- Closing tickets ---
+
+/** "Close ticket" button (client or manager, see closeRefusal). customId: close_ticket:ticketId */
+export function closeTicketButtonRow(ticketId) {
+  const button = new ButtonBuilder()
+    .setCustomId(`${PREFIX.CLOSE_TICKET}:${ticketId}`)
+    .setLabel('Close ticket')
+    .setStyle(ButtonStyle.Danger);
+  return new ActionRowBuilder().addComponents(button);
+}
+
+/** "Keep archived" button (manager) under the closed-ticket notice. customId: keep_channel:ticketId */
+export function keepChannelButtonRow(ticketId) {
+  const button = new ButtonBuilder()
+    .setCustomId(`${PREFIX.KEEP_CHANNEL}:${ticketId}`)
+    .setLabel('Keep archived')
+    .setStyle(ButtonStyle.Secondary);
+  return new ActionRowBuilder().addComponents(button);
+}
+
+/**
+ * Notice posted in a ticket channel when it is closed.
+ * @param {string} closedById
+ * @param {number} deleteAtMs
+ * @returns {string}
+ */
+export function ticketClosedText(closedById, deleteAtMs) {
+  const at = Math.floor(deleteAtMs / 1000);
+  return (
+    `🔒 Ticket closed by <@${closedById}>. This channel is now read-only and will be deleted <t:${at}:R>.\n` +
+    'A manager can keep it archived instead.'
+  );
+}
+
 // --- Payment (STEP 8) ---
 
 /** "Confirm Payment Received" button (manager only, in freelancer channel). customId: confirm_payment:ticketId */

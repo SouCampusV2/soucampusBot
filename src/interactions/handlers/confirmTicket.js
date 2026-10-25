@@ -8,6 +8,7 @@ import { getManagerRole } from '../../utils/permissions.js';
 import { getSetting } from '../../core/GuildConfig.js';
 import { createTicket } from '../../modules/tickets/TicketRepository.js';
 import { startOrderFlow } from '../../modules/tickets/flows/OrderFlow.js';
+import { closeTicketButtonRow } from '../../embeds/templates.js';
 import { tryConsumeTicketCreate } from '../../utils/rateLimit.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
@@ -84,9 +85,10 @@ export async function handleConfirmTicket(interaction, parts) {
       clientChannelId: channel.id,
     });
     const label = TYPE_LABELS[type] || type;
-    await channel.send(
-      `Your **${label}** ticket has been created. Ticket ID: \`${ticketId}\`. You can describe your request here.`
-    );
+    await channel.send({
+      content: `Your **${label}** ticket has been created. Ticket ID: \`${ticketId}\`. You can describe your request here.`,
+      components: [closeTicketButtonRow(ticketId)],
+    });
 
     // CHECKPOINT: Order dialog (STEP 2) — only for order type; starts first question.
     if (type === TICKET_TYPES.ORDER) {

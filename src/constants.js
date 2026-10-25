@@ -68,7 +68,17 @@ export const PREFIX = {
   SUBMIT_REVIEW: 'submit_review',
   /** Submit Review modal — customId submit_review_modal:ticketId */
   SUBMIT_REVIEW_MODAL: 'submit_review_modal',
+  /** Close a ticket of any type (client or manager, see canCloseTicket) — customId close_ticket:ticketId */
+  CLOSE_TICKET: 'close_ticket',
+  /** Manager: keep a closed ticket's channel instead of deleting it — customId keep_channel:ticketId */
+  KEEP_CHANNEL: 'keep_channel',
 };
+
+/** A closed ticket's channel is deleted this long after closing, unless a manager keeps it. */
+export const CHANNEL_DELETE_DELAY_MS = 48 * 60 * 60 * 1000;
+
+/** How often the cleanup job looks for channels due for deletion. */
+export const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 
 /** Order dialog: question labels (field names in ticket_fields). Step 8 = budget (Select Menu). */
 export const ORDER_QUESTION_KEYS = [

@@ -215,7 +215,8 @@ const QUOTE_CHANNEL_DELAY_MS = 60_000;
  */
 export function scheduleQuoteChannelCreation(client, ticketId) {
   setQuoteChannelDueAt(ticketId, Date.now() + QUOTE_CHANNEL_DELAY_MS);
-  setTimeout(() => createQuoteChannelForTicket(client, ticketId), QUOTE_CHANNEL_DELAY_MS);
+  // unref: the gateway connection keeps the bot alive; this timer alone must not (tests, shutdown).
+  setTimeout(() => createQuoteChannelForTicket(client, ticketId), QUOTE_CHANNEL_DELAY_MS).unref();
 }
 
 /**
@@ -236,7 +237,7 @@ export function recoverPendingQuoteChannels(client) {
     if (remaining <= 0) {
       createQuoteChannelForTicket(client, ticket.id);
     } else {
-      setTimeout(() => createQuoteChannelForTicket(client, ticket.id), remaining);
+      setTimeout(() => createQuoteChannelForTicket(client, ticket.id), remaining).unref();
     }
   }
   if (pending.length) logger.info('Recovered pending quote-channel timers', { count: pending.length });

@@ -67,6 +67,10 @@ export function fakeChannel(guild, { id = nextId(), parentId = null } = {}) {
     async setParent(newParentId) {
       channel.parentId = newParentId;
     },
+    deleted: false,
+    async delete() {
+      channel.deleted = true;
+    },
     isThread: () => false,
   };
   return channel;

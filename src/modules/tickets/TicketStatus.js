@@ -93,6 +93,32 @@ export function transitionTicket(ticketId, to, extra = {}) {
   return false;
 }
 
+/** Stages in which the CLIENT may close their own ticket. Managers may close at any stage. */
+const CLIENT_CLOSABLE = {
+  // Before a freelancer is picked = cancelling; after completion = done. In between a freelancer
+  // is working (and may have been paid) — walking away then is a manager's call.
+  order: [STATUS.FORM, STATUS.OPEN, STATUS.COMPLETED],
+  help: [STATUS.OPEN],
+  application: [STATUS.OPEN, STATUS.ACCEPTED, STATUS.REJECTED],
+};
+
+/**
+ * Why this user may NOT close the ticket, or null if they may.
+ * @param {{ type: string, status: string, client_id: string }} ticket
+ * @param {string} userId
+ * @param {boolean} isManager
+ * @returns {string | null}
+ */
+export function closeRefusal(ticket, userId, isManager) {
+  if (ticket.status === STATUS.CLOSED) return 'This ticket is already closed.';
+  if (isManager) return null;
+  if (ticket.client_id !== userId) return 'Only the ticket owner or a manager can close this ticket.';
+  if (!(CLIENT_CLOSABLE[ticket.type] ?? []).includes(ticket.status)) {
+    return 'A freelancer is working on this order — ask a manager to close it.';
+  }
+  return null;
+}
+
 /**
  * Migration helper: derive `status` for tickets created before the column existed.
  * Takes the db handle because it runs inside initDatabase, before getDatabase() is usable.

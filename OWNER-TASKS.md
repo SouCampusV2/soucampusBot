@@ -18,7 +18,29 @@
    если токен когда-нибудь утечёт. И второе: когда бот будет больше чем на
    100 серверах, Discord заставит обосновывать каждую включённую галочку.
    Проверить, что после выключения всё работает, — `TEMP.md` § 5.
-4. **Фаза 5:** доступ к VPS (SSH) для деплоя бота рядом со сканером.
+4. **Фаза 5: SSH-доступ к VPS для Claude.** Ключ уже создан на этом
+   компьютере 2026-10-26: `~/.ssh/bocampus_vps` (приватный — никуда не
+   отправлять), публичный:
+   ```
+   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHG/w6LJu8DUL2yhHky5tzZVNmQosg99iUP05ukuDqgG bocampus-deploy@SouCampus
+   ```
+   Отдельный пользователь `deploy`, не root: так видно, что делал бот-деплой,
+   и доступ отзывается одной строкой. В hPanel → VPS → **Browser terminal**
+   (или своим SSH под root):
+   ```bash
+   adduser --disabled-password --gecos "" deploy
+   mkdir -p /home/deploy/.ssh
+   echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHG/w6LJu8DUL2yhHky5tzZVNmQosg99iUP05ukuDqgG bocampus-deploy@SouCampus" >> /home/deploy/.ssh/authorized_keys
+   chown -R deploy:deploy /home/deploy/.ssh
+   chmod 700 /home/deploy/.ssh && chmod 600 /home/deploy/.ssh/authorized_keys
+   # если Docker уже стоит (n8n в нём?) — дать deploy запускать контейнеры:
+   getent group docker && usermod -aG docker deploy
+   ```
+   Потом прислать **IP сервера** — больше ничего: ни пароля, ни ключей.
+   ⚠️ Группа `docker` по силе почти равна root — это цена того, что бот
+   деплоится без пароля. Отозвать доступ: удалить строку из
+   `/home/deploy/.ssh/authorized_keys` (или `deluser deploy`).
+   Если Docker не установлен — сказать, установка один раз нужна под root.
 
 ## 🟢 Закрытые
 

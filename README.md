@@ -25,7 +25,7 @@ Status of every feature: [`docs/SPEC.md`](docs/SPEC.md). Plan:
 
 ## Tech stack
 
-- [discord.js](https://discord.js.org/) v14, Node.js 20+
+- [discord.js](https://discord.js.org/) v14, Node.js 22+
 - SQLite (`better-sqlite3`)
 - `node-cron`, `winston`, `dotenv`
 - Tests on the built-in `node:test` runner, CI on GitHub Actions

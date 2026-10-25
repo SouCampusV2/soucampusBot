@@ -5,7 +5,7 @@
 
 ## Стек
 
-- Node.js 18+ (ES-модули, `"type": "module"`)
+- Node.js 22+ (ES-модули, `"type": "module"`)
 - discord.js v14 — кнопки, модалки, меню, слэш-команды
 - SQLite через `better-sqlite3` (синхронный API — это важно, см. «Гонки»)
 - `node-cron` — ежедневные напоминания, `winston` — логи, `dotenv` — секреты

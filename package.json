@@ -11,7 +11,7 @@
     "check": "node scripts/check-syntax.js"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "better-sqlite3": "^11.6.0",

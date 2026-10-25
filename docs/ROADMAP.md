@@ -12,7 +12,7 @@
 
 Ветка `dev`; тесты на встроенном `node --test` без новых зависимостей
 (фейки Discord в `tests/helpers/fakes.js`, база `:memory:`); `npm test`,
-`npm run check`; CI на GitHub Actions (Node 20 и 22). Каждый тест на баг
+`npm run check`; CI на GitHub Actions (Node 22 и 24). Каждый тест на баг
 сначала падал на старом коде — 16 из 19 красных до правок.
 
 ## 🟡 Фаза 1 — Критичные баги — код готов 2026-10-25, ждёт прогона в Discord

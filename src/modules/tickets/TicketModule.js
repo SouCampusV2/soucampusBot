@@ -49,6 +49,7 @@ import { scheduleCleanupJob } from '../../jobs/cleanupJob.js';
 import { scheduleBackupJob } from '../../jobs/backupJob.js';
 import { attachOrderCard } from './OrderCard.js';
 import { attachStaffLog } from './StaffLog.js';
+import { attachTranscripts } from './Transcript.js';
 import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
 import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
@@ -144,6 +145,7 @@ export function registerTicketModule(client) {
   // Event-driven features: subscribed once, react to every ticket change from any handler.
   attachOrderCard(client);
   attachStaffLog(client);
+  attachTranscripts(client);
 
   client.once(Events.ClientReady, async () => {
     postLegacyPanel(client);

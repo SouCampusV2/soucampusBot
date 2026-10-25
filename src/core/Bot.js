@@ -21,11 +21,13 @@ export function getBot(options = {}) {
     throw new Error('DISCORD_TOKEN is required. Set it in .env.');
   }
   const client = new Client({
-    // Only the non-privileged Guilds intent. Privileged intents need Discord's approval past 100 servers:
-    // - MessageContent: not needed, the order flow is fully modal/button-based.
-    // - GuildMembers: not needed, role checks use interaction.member (sent with every interaction)
-    //   and display names come from guild.members.fetch(id), a plain REST call.
-    intents: [GatewayIntentBits.Guilds],
+    // Guilds: channels, roles, interactions.
+    // MessageContent (privileged): read people's messages for ticket transcripts (Transcript.js).
+    //   Enabled 2026-10-26 — the bot runs on ONE server, so the 100-server verification cap does not
+    //   apply. Must also be ON in the Developer Portal, or login fails with "disallowed intents".
+    // GuildMembers is NOT requested: role checks use interaction.member, names come from
+    //   guild.members.fetch(id), a plain REST call.
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
   });
 
   // Without an 'error' listener, Node turns an emitted 'error' (e.g. a gateway hiccup) into a crash.

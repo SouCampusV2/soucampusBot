@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { logger } from '../utils/logger.js';
 import { backfillStatus } from '../modules/tickets/TicketStatus.js';
+import { parseDeadline } from '../utils/dates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -60,6 +61,7 @@ function runMigrations(db) {
   addTicketColumn('quote_channel_due_at', 'INTEGER');
   addTicketColumn('status', 'TEXT');
   addTicketColumn('channel_delete_at', 'INTEGER');
+  normalizeDeadlines(db);
   backfillStatus(db);
 
   // Indexes created here (after column migrations) so they can reference new columns.
@@ -73,6 +75,28 @@ function runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_proposals_ticket ON proposals(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_reviews_ticket ON reviews(ticket_id);
   `);
+}
+
+/**
+ * tickets.deadline used to hold whatever the client typed; it now holds 'YYYY-MM-DD' or NULL.
+ * Convert old rows once: relative text ("2 weeks") counts from the ticket's creation, not from
+ * today. Unreadable text becomes NULL — the original stays in ticket_fields. Idempotent: rows
+ * that are already a date are skipped.
+ * @param {import('better-sqlite3').Database} db
+ */
+export function normalizeDeadlines(db) {
+  const rows = db
+    .prepare("SELECT id, deadline, created_at FROM tickets WHERE deadline IS NOT NULL AND deadline NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'")
+    .all();
+  if (!rows.length) return;
+  const update = db.prepare('UPDATE tickets SET deadline = ? WHERE id = ?');
+  db.transaction(() => {
+    for (const row of rows) {
+      const created = row.created_at ? new Date(`${row.created_at.replace(' ', 'T')}Z`) : new Date();
+      update.run(parseDeadline(row.deadline, created), row.id);
+    }
+  })();
+  logger.info('Migration: normalized ticket deadlines to dates', { tickets: rows.length });
 }
 
 /**

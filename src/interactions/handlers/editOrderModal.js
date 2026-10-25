@@ -9,7 +9,7 @@ import {
   saveTicketField,
   updateTicketDeadline,
 } from '../../modules/tickets/TicketRepository.js';
-import { getOrderSummaryPayload, EDIT_ORDER_MODAL_FIELDS } from '../../embeds/templates.js';
+import { getOrderSummaryPayload, EDIT_ORDER_MODAL_FIELDS, deadlineWarning } from '../../embeds/templates.js';
 import { ensureTicketClient } from '../../utils/permissions.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
@@ -28,14 +28,15 @@ export async function handleEditOrderModal(interaction, parts) {
   // A modal is its own door: re-check who submits it, the check on the button does not carry over.
   if (!(await ensureTicketClient(interaction, ticket))) return;
   try {
+    let warning = '';
     for (const key of EDIT_ORDER_MODAL_FIELDS) {
       const value = interaction.fields.getTextInputValue(`field_${key}`)?.trim() || '';
       saveTicketField(ticketId, key, value);
-      if (key === 'deadline') updateTicketDeadline(ticketId, value);
+      if (key === 'deadline') warning = deadlineWarning(value, updateTicketDeadline(ticketId, value));
     }
     const fields = getTicketFields(ticketId);
     const payload = getOrderSummaryPayload(fields, ticketId);
-    await interaction.reply({ content: 'Order updated.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Order updated.' + warning, flags: MessageFlags.Ephemeral });
     const channel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
     if (channel) await channel.send(payload);
     logger.info('Order edited, summary re-posted', { ticketId });

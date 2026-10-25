@@ -25,6 +25,7 @@ import {
   freelancerActionButtonRows,
   EDIT_ORDER_MODAL_FIELDS,
   ORDER_FORM_2_FIELDS,
+  deadlineWarning,
 } from '../../../embeds/templates.js';
 import { ORDER_QUESTION_KEYS } from '../../../constants.js';
 import { getQuoteChannelName } from '../../../utils/channelNaming.js';
@@ -99,13 +100,14 @@ export async function handleOrderForm1Modal(interaction, parts) {
     return;
   }
   try {
+    let warning = '';
     for (const key of EDIT_ORDER_MODAL_FIELDS) {
       const value = interaction.fields.getTextInputValue(`field_${key}`)?.trim() || '';
       saveTicketField(ticketId, key, value);
-      if (key === 'deadline') updateTicketDeadline(ticketId, value);
+      if (key === 'deadline') warning = deadlineWarning(value, updateTicketDeadline(ticketId, value));
     }
     await interaction.reply({
-      content: 'Part 1 saved. Click below to fill version and extra details.',
+      content: 'Part 1 saved. Click below to fill version and extra details.' + warning,
       components: [orderForm2ButtonRow(ticketId)],
     });
   } catch (err) {

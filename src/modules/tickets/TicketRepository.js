@@ -6,6 +6,7 @@ import { run, get, query } from '../../core/Database.js';
 import { logger } from '../../utils/logger.js';
 import { randomBytes } from 'crypto';
 import { initialStatus } from './TicketStatus.js';
+import { parseDeadline } from '../../utils/dates.js';
 
 /**
  * Generate short unique ticket id.
@@ -87,12 +88,30 @@ export function saveTicketField(ticketId, fieldName, value) {
 }
 
 /**
- * Update ticket deadline (from order dialog question 2).
+ * Store the ticket's deadline as a calendar date parsed from what the person typed.
+ * The raw text stays in ticket_fields (shown in the summary); tickets.deadline holds only a
+ * 'YYYY-MM-DD' date or NULL, so the reminder job never has to guess.
  * @param {string} ticketId
- * @param {string} deadline
+ * @param {string} text - as typed, e.g. '25.12.2026' or 'in 2 weeks'
+ * @returns {string | null} the stored date, or null if the text was not a recognisable date
  */
-export function updateTicketDeadline(ticketId, deadline) {
-  run('UPDATE tickets SET deadline = ? WHERE id = ?', [deadline, ticketId]);
+export function updateTicketDeadline(ticketId, text) {
+  const date = parseDeadline(text);
+  run('UPDATE tickets SET deadline = ? WHERE id = ?', [date, ticketId]);
+  return date;
+}
+
+/**
+ * Open orders whose deadline falls on one of the given days (reminder job).
+ * @param {string[]} isoDays - e.g. [today, tomorrow]
+ * @returns {object[]}
+ */
+export function getTicketsWithDeadlineOn(isoDays) {
+  const placeholders = isoDays.map(() => '?').join(', ');
+  return query(
+    `SELECT * FROM tickets WHERE deadline IN (${placeholders}) AND status IN ('open', 'assigned', 'paid')`,
+    isoDays
+  );
 }
 
 /**

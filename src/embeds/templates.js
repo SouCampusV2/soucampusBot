@@ -214,7 +214,7 @@ export function buildOrderForm1Modal(ticketId, fields = []) {
 
   const labels = {
     need: 'What are you in need of?',
-    deadline: 'When is the deadline? (e.g. 2025-03-15)',
+    deadline: 'When is the deadline? (e.g. 25.12.2026)',
     reference_urls: 'Reference images (URLs)',
     size: 'Build size',
     theme: 'Theme',
@@ -359,7 +359,7 @@ export function buildSubmitQuoteModal(ticketId) {
         .setCustomId('quote_deadline')
         .setLabel('Your deadline for this order')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 2025-03-20')
+        .setPlaceholder('e.g. 25.12.2026 or in 2 weeks')
         .setRequired(true)
     ),
     new ActionRowBuilder().addComponents(
@@ -600,6 +600,21 @@ export function reviewEmbed(data, clientName, freelancerName, ticketId) {
     .setTimestamp();
 }
 
+/**
+ * Warning appended to a form reply when the client's deadline is not a readable date.
+ * The form still saves (the text is shown in the summary) — but reminders need a date.
+ * @param {string} text - what the client typed
+ * @param {string | null} date - parse result
+ * @returns {string} '' when there is nothing to warn about
+ */
+export function deadlineWarning(text, date) {
+  if (!text || date) return '';
+  return (
+    `\n⚠️ We could not read "${text.slice(0, 50)}" as a date, so there will be no deadline reminders. ` +
+    'Use e.g. `25.12.2026` or `in 2 weeks` (Edit Order) if you want them.'
+  );
+}
+
 // --- Closing tickets ---
 
 /** "Close ticket" button (client or manager, see closeRefusal). customId: close_ticket:ticketId */
@@ -672,7 +687,7 @@ export function buildExtendDeadlineModal(ticketId, currentDeadline = '') {
         .setCustomId('new_deadline')
         .setLabel('New deadline date')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. 2025-04-01')
+        .setPlaceholder('e.g. 25.12.2026 or in 2 weeks')
         .setValue(currentDeadline.slice(0, 4000))
         .setRequired(true)
     )

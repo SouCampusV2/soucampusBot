@@ -23,6 +23,7 @@ export async function handleExtendDeadline(interaction, parts) {
     await interaction.reply({ content: 'Ticket not found.', flags: MessageFlags.Ephemeral });
     return;
   }
+  // tickets.deadline is always 'YYYY-MM-DD' or NULL now — a valid prefill.
   const modal = buildExtendDeadlineModal(ticketId, ticket.deadline || '');
   await interaction.showModal(modal);
 }

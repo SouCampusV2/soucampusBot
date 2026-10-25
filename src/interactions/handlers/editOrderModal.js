@@ -18,6 +18,7 @@ import {
 } from '../../embeds/templates.js';
 import { STATUS } from '../../modules/tickets/TicketStatus.js';
 import { ensureTicketClient } from '../../utils/permissions.js';
+import { refreshOrderCard } from '../../modules/tickets/OrderCard.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
@@ -58,6 +59,7 @@ export async function handleEditOrderModal(interaction, parts) {
         embeds: [orderSummaryEmbedForFreelancers(fields)],
       });
     }
+    await refreshOrderCard(interaction.client, ticketId);
     logger.info('Order edited, summary re-posted', { ticketId });
   } catch (err) {
     logger.error('Edit order modal failed', { ticketId, error: err.message });

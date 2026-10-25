@@ -6,6 +6,7 @@ import { MessageFlags } from 'discord.js';
 import { getTicketById, updateTicketDeadline } from '../../modules/tickets/TicketRepository.js';
 import { isManagerOrAdmin } from '../../utils/permissions.js';
 import { parseDeadline, todayIso } from '../../utils/dates.js';
+import { refreshOrderCard } from '../../modules/tickets/OrderCard.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
@@ -47,6 +48,7 @@ export async function handleExtendDeadlineModal(interaction, parts) {
       const ch = await interaction.client.channels.fetch(channelId).catch(() => null);
       if (ch) await ch.send(msg);
     }
+    await refreshOrderCard(interaction.client, ticketId);
     logger.info('Deadline extended', { ticketId, date });
   } catch (err) {
     logger.error('extend_deadline_modal failed', { ticketId, error: err.message });

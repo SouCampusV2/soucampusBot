@@ -6,7 +6,8 @@ import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
 import { createProposal, quoteRefusal } from '../../modules/proposals/ProposalRepository.js';
 import { quoteEmbed, clientQuoteActionRows } from '../../embeds/templates.js';
-import { refreshQuoteCounter } from '../../modules/proposals/QuoteCounter.js';
+import { refreshOrderCard } from '../../modules/tickets/OrderCard.js';
+import { getFreelancerStats } from '../../modules/reviews/ReviewRepository.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
@@ -38,7 +39,8 @@ export async function handleSubmitQuoteModal(interaction, parts) {
     // Saved; posting to two channels + the counter is slow — answer within Discord's 3 seconds first.
     await interaction.reply({ content: 'Your quote has been sent to the client.', flags: MessageFlags.Ephemeral });
 
-    const embed = quoteEmbed({ price, deadline, message }, freelancerUsername);
+    const stats = getFreelancerStats(freelancerId, ticket.guild_id);
+    const embed = quoteEmbed({ price, deadline, message }, freelancerUsername, stats);
     const clientComponents = clientQuoteActionRows(ticketId, freelancerId, proposalId);
 
     const freelancerChannel = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
@@ -54,7 +56,7 @@ export async function handleSubmitQuoteModal(interaction, parts) {
         components: clientComponents,
       });
     }
-    await refreshQuoteCounter(interaction.client, ticket);
+    await refreshOrderCard(interaction.client, ticketId);
     logger.info('Quote submitted and forwarded', { proposalId, ticketId, freelancerId });
   } catch (err) {
     logger.error('submit_quote_modal failed', { ticketId, error: err.message });

@@ -1,11 +1,11 @@
 /**
  * Handler for decline_order:ticketId — remove freelancer's view of channel, send DM, update the
- * client's counter (STEP 7).
+ * client's order card (STEP 7).
  */
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
-import { refreshQuoteCounter } from '../../modules/proposals/QuoteCounter.js';
+import { refreshOrderCard } from '../../modules/tickets/OrderCard.js';
 import { run } from '../../core/Database.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
@@ -38,7 +38,7 @@ export async function handleDeclineOrder(interaction, parts) {
     if (member) clientName = member.displayName || member.user.username || clientName;
     // DMs fail when the user has them closed — expected, not an error.
     await interaction.user.send(`You've declined the order from ${clientName}. You will no longer see this listing.`).catch(() => {});
-    await refreshQuoteCounter(interaction.client, ticket);
+    await refreshOrderCard(interaction.client, ticketId);
     logger.info('Freelancer declined order', { ticketId, userId: interaction.user.id });
   } catch (err) {
     logger.error('decline_order failed', { ticketId, error: err.message });

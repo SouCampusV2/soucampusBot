@@ -23,6 +23,7 @@ export const SETTINGS = {
   role_manager: { column: 'role_manager', env: 'ROLE_MANAGER_ID' },
   role_freelancer: { column: 'role_freelancer', env: 'ROLE_FREELANCER_ID' },
   brand_color: { column: 'brand_color', env: 'BRAND_COLOR' },
+  channel_log: { column: 'channel_log', env: 'CHANNEL_LOG' },
 };
 
 /** In-memory cache: guildId -> config row. Invalidated on write. */

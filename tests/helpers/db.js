@@ -28,6 +28,7 @@ export function seedOrder(opts) {
     clientChannelId: opts.clientChannelId,
   });
   saveTicketField(id, 'need', 'A spawn castle');
+  for (const [name, value] of Object.entries(opts.fields ?? {})) saveTicketField(id, name, value);
   if (opts.inForm) return id;
   transitionTicket(id, STATUS.OPEN);
   if (opts.freelancerChannelId) setFreelancerChannelId(id, opts.freelancerChannelId);

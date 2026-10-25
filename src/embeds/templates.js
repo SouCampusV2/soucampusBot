@@ -14,6 +14,7 @@ import {
 } from 'discord.js';
 import { PREFIX, TICKET_TYPES, ORDER_BUDGET_OPTIONS, APPLICATION_FIELDS } from '../constants.js';
 import { getSetting } from '../core/GuildConfig.js';
+import { estimateOrder, formatEstimate } from '../utils/pricing.js';
 
 const EMBED_COLOR = 0x5865f2; // Discord blurple / brand (default)
 
@@ -148,11 +149,30 @@ export function orderSummaryEmbed(fields) {
     .setTitle('Order summary')
     .setDescription('Review your order. Click **Edit Order** to change any field.')
     .setTimestamp();
+  addOrderFields(embed, fields);
+  return embed;
+}
+
+/**
+ * One field per answer (budget shown by its label), plus the price estimate when the size is readable.
+ * @param {EmbedBuilder} embed
+ * @param {{ field_name: string, field_value: string }[]} fields
+ */
+function addOrderFields(embed, fields) {
   for (const f of fields) {
     const label = ORDER_FIELD_LABELS[f.field_name] || f.field_name;
-    embed.addFields({ name: label, value: (f.field_value || '-').slice(0, 1024), inline: false });
+    const value = f.field_name === 'budget' ? budgetLabel(f.field_value) : f.field_value;
+    embed.addFields({ name: label, value: (value || '-').slice(0, 1024), inline: false });
   }
-  return embed;
+  const estimate = estimateOrder(fields.find((f) => f.field_name === 'size')?.field_value);
+  if (estimate) {
+    embed.addFields({ name: 'Estimate (guide)', value: `${formatEstimate(estimate)} — the freelancer's quote sets the real price` });
+  }
+}
+
+/** '100-500' -> '€100–€500' (the stored value stays stable when labels change). */
+export function budgetLabel(value) {
+  return ORDER_BUDGET_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
 
 /**
@@ -318,10 +338,7 @@ export function orderSummaryEmbedForFreelancers(fields) {
     .setTitle('Order — request for quote')
     .setDescription('Submit a quote, send a message, or decline.')
     .setTimestamp();
-  for (const f of fields) {
-    const label = ORDER_FIELD_LABELS[f.field_name] || f.field_name;
-    embed.addFields({ name: label, value: (f.field_value || '-').slice(0, 1024), inline: false });
-  }
+  addOrderFields(embed, fields);
   return embed;
 }
 
@@ -392,11 +409,13 @@ export function buildSubmitQuoteModal(ticketId) {
  * @param {string} freelancerUsername
  * @returns {EmbedBuilder}
  */
-export function quoteEmbed(data, freelancerUsername) {
-  return new EmbedBuilder()
+export function quoteEmbed(data, freelancerUsername, stats) {
+  const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setAuthor({ name: freelancerUsername })
-    .setTitle('Quote')
+    .setTitle('Quote');
+  if (stats) embed.setDescription(trackRecordText(stats));
+  return embed
     .addFields(
       { name: 'Price', value: data.price || '-', inline: true },
       { name: 'Deadline', value: data.deadline || '-', inline: true },
@@ -620,14 +639,73 @@ export function deadlineWarning(text, date) {
 }
 
 /**
- * Client-side counter of freelancer activity on their order.
- * @param {{ quotes: number, declined: number }} counts
- * @returns {string}
+ * "⭐ 4.5 · 2 reviews · 3 orders delivered" — or "New on this server" instead of a bare 0.
+ * @param {{ delivered: number, reviews: number, avgRating: number | null }} stats
  */
-export function quoteCounterText({ quotes, declined }) {
-  const q = `${quotes} ${quotes === 1 ? 'quote' : 'quotes'} received`;
-  const d = `${declined} ${declined === 1 ? 'freelancer' : 'freelancers'} not interested`;
-  return `📊 **Your order so far:** ${q} · ${d}`;
+export function trackRecordText({ delivered, reviews, avgRating }) {
+  if (!delivered && !reviews) return '🆕 New on this server — no delivered orders yet';
+  const parts = [];
+  if (reviews) parts.push(`⭐ ${avgRating} · ${reviews} ${reviews === 1 ? 'review' : 'reviews'}`);
+  parts.push(`${delivered} ${delivered === 1 ? 'order' : 'orders'} delivered`);
+  return parts.join(' · ');
+}
+
+// --- Order card (one live message per order in the client channel) ---
+
+/** Milestones shown on the card, in order; a milestone is done once the status reaches it. */
+const CARD_MILESTONES = [
+  ['open', 'Order form'],
+  ['assigned', 'Freelancer picked'],
+  ['paid', 'Paid'],
+  ['completed', 'Delivered'],
+];
+const CARD_STATUS_TEXT = {
+  open: 'Collecting quotes',
+  assigned: 'Waiting for payment',
+  paid: 'In progress',
+  completed: 'Delivered — please leave a review',
+  closed: 'Closed',
+};
+
+/**
+ * @param {{ id: string, status: string, guild_id?: string, assigned_freelancer_id?: string, deadline?: string }} ticket
+ * @param {{ field_name: string, field_value: string }[]} fields
+ * @param {{ quotes: number, declined: number, agreedPrice?: string }} info
+ */
+export function orderCardEmbed(ticket, fields, { quotes, declined, agreedPrice }) {
+  const order = ['form', ...CARD_MILESTONES.map(([s]) => s)];
+  const reached = ticket.status === 'closed' ? -1 : order.indexOf(ticket.status);
+  let nextMarked = false;
+  const timeline = CARD_MILESTONES.map(([status, label]) => {
+    if (order.indexOf(status) <= reached) return `✅ ${label}`;
+    if (!nextMarked && ticket.status !== 'closed') {
+      nextMarked = true;
+      return `▶️ **${label}**`;
+    }
+    return `⬜ ${label}`;
+  }).join('\n');
+
+  const valueOf = (name) => fields.find((f) => f.field_name === name)?.field_value;
+  const embed = new EmbedBuilder()
+    .setColor(brandColor(ticket.guild_id))
+    .setTitle(`Order · ${ticket.id}`)
+    .setDescription(`**${CARD_STATUS_TEXT[ticket.status] ?? ticket.status}**\n\n${timeline}`)
+    .setTimestamp();
+  if (ticket.status === 'open') {
+    embed.addFields({ name: 'Quotes', value: `${quotes} received · ${declined} not interested`, inline: true });
+  }
+  if (ticket.assigned_freelancer_id) {
+    embed.addFields({ name: 'Freelancer', value: `<@${ticket.assigned_freelancer_id}>`, inline: true });
+  }
+  if (agreedPrice) embed.addFields({ name: 'Agreed price', value: agreedPrice.slice(0, 100), inline: true });
+  if (ticket.deadline) {
+    const unix = Math.floor(Date.parse(`${ticket.deadline}T12:00:00Z`) / 1000);
+    embed.addFields({ name: 'Deadline', value: `${ticket.deadline} (<t:${unix}:R>)`, inline: true });
+  }
+  const estimate = estimateOrder(valueOf('size'));
+  if (estimate) embed.addFields({ name: 'Estimate', value: formatEstimate(estimate), inline: true });
+  if (valueOf('budget')) embed.addFields({ name: 'Budget', value: budgetLabel(valueOf('budget')), inline: true });
+  return embed;
 }
 
 // --- Team application ---

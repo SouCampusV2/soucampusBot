@@ -22,24 +22,25 @@ function setup(guildId) {
 
 const as = (s, member, extra = {}) => fakeInteraction({ client: s.discord, member, guild: s.guild, ...extra });
 
+// The quote counter lives in the order card (one message, edited in place) since 2026-10-26.
+const card = (channel) => [...channel.posted.values()].filter((m) => m.embeds?.[0]?.data?.title?.startsWith('Order ·'));
+
 test('the client sees one live counter of quotes and declines', async () => {
   const s = setup('g-counter');
   await handleSubmitQuoteModal(as(s, s.a, { fields: QUOTE }), ['submit_quote_modal', s.ticketId]);
   await handleSubmitQuoteModal(as(s, s.b, { fields: QUOTE }), ['submit_quote_modal', s.ticketId]);
   await handleDeclineOrder(as(s, s.c, { channel: s.quoteChannel }), ['decline_order', s.ticketId]);
 
-  const counters = [...s.clientChannel.posted.values()].filter((m) => /quote/i.test(m.content ?? '') && /📊/.test(m.content ?? ''));
-  assert.equal(counters.length, 1, 'one counter message, edited in place');
-  assert.match(counters[0].content, /2 quotes received/);
-  assert.match(counters[0].content, /1 freelancer not interested/);
+  const cards = card(s.clientChannel);
+  assert.equal(cards.length, 1, 'one card, edited in place');
+  assert.match(JSON.stringify(cards[0].embeds[0].data), /2 received · 1 not interested/);
 });
 
 test('the same freelancer declining twice is counted once', async () => {
   const s = setup('g-counter-dup');
   await handleDeclineOrder(as(s, s.c, { channel: s.quoteChannel }), ['decline_order', s.ticketId]);
   await handleDeclineOrder(as(s, s.c, { channel: s.quoteChannel }), ['decline_order', s.ticketId]);
-  const counter = [...s.clientChannel.posted.values()].find((m) => /📊/.test(m.content ?? ''));
-  assert.match(counter.content, /1 freelancer not interested/);
+  assert.match(JSON.stringify(card(s.clientChannel)[0].embeds[0].data), /0 received · 1 not interested/);
 });
 
 test('once a freelancer took the order, the client can no longer edit it', async () => {

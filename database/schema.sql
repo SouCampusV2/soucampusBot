@@ -16,7 +16,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   relay_freelancer_msg_id TEXT,    -- last relay message id in freelancer channel
   quote_channel_due_at INTEGER,    -- epoch ms: when quote channel should be created (STEP 4), NULL once done
   channel_delete_at INTEGER,       -- epoch ms: when the closed ticket's channel is deleted, NULL = keep
-  quote_counter_msg_id TEXT,       -- the client-channel message showing "N quotes · M not interested"
+  quote_counter_msg_id TEXT,       -- legacy (2026-10-26, replaced by the order card), unused
+  order_card_msg_id TEXT,          -- the order card in the client channel, edited on every change
+  completed_at INTEGER,            -- epoch ms when the order was marked complete (freelancer stats)
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -70,6 +72,7 @@ CREATE TABLE IF NOT EXISTS guild_config (
   role_manager TEXT,
   role_freelancer TEXT,
   brand_color TEXT,
+  channel_log TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

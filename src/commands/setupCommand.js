@@ -11,6 +11,7 @@
  *   /setup freelancer_role <role>       — the Freelancer role
  *   /setup color           <hex>        — brand color for embeds (e.g. #5865F2)
  *   /setup panel           [channel]    — post the ticket panel (defaults to current channel)
+ *   /setup log_channel     <channel>    — staff log: one line per ticket event
  *   /setup view                          — show current configuration
  */
 
@@ -49,6 +50,9 @@ export const setupCommandData = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s.setName('panel').setDescription('Post the ticket panel')
       .addChannelOption((o) => o.setName('channel').setDescription('Channel (defaults to here)').addChannelTypes(ChannelType.GuildText).setRequired(false)))
+  .addSubcommand((s) =>
+    s.setName('log_channel').setDescription('Staff log channel: one line per ticket event')
+      .addChannelOption((o) => o.setName('channel').setDescription('Text channel (staff only)').addChannelTypes(ChannelType.GuildText).setRequired(true)))
   .addSubcommand((s) => s.setName('view').setDescription('Show current configuration'))
   .toJSON();
 
@@ -78,6 +82,15 @@ export async function handleSetupCommand(interaction) {
         const channel = interaction.options.getChannel('channel');
         setSetting(guildId, 'channel_reviews', channel.id);
         await interaction.reply({ content: `✅ Reviews will be posted in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
+        return;
+      }
+      case 'log_channel': {
+        const channel = interaction.options.getChannel('channel');
+        setSetting(guildId, 'channel_log', channel.id);
+        await interaction.reply({
+          content: `✅ Ticket events will be logged in <#${channel.id}>. Keep it visible to staff only.`,
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       case 'manager_role':
@@ -119,6 +132,7 @@ export async function handleSetupCommand(interaction) {
           line('Archived category', cfg.category_archived, 'channel'),
           line('Reviews channel', cfg.channel_reviews, 'channel'),
           line('Panel channel', cfg.channel_panel, 'channel'),
+          line('Staff log channel', cfg.channel_log, 'channel'),
           line('Manager role', cfg.role_manager, 'role'),
           line('Freelancer role', cfg.role_freelancer, 'role'),
           line('Brand color', cfg.brand_color, 'text'),

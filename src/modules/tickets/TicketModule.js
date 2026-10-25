@@ -45,6 +45,8 @@ import {
 import { scheduleDeadlineJob } from '../../jobs/deadlineJob.js';
 import { scheduleCleanupJob } from '../../jobs/cleanupJob.js';
 import { scheduleBackupJob } from '../../jobs/backupJob.js';
+import { attachOrderCard } from './OrderCard.js';
+import { attachStaffLog } from './StaffLog.js';
 import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
 import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
@@ -134,6 +136,10 @@ export function registerTicketModule(client) {
   registerHandler(PREFIX.ACCEPT_APPLICATION, handleAcceptApplication);
   registerHandler(PREFIX.REJECT_APPLICATION, handleRejectApplication);
   registerHandler(PREFIX.REJECT_APPLICATION_MODAL, handleRejectApplicationModal);
+
+  // Event-driven features: subscribed once, react to every ticket change from any handler.
+  attachOrderCard(client);
+  attachStaffLog(client);
 
   client.once(Events.ClientReady, async () => {
     postLegacyPanel(client);

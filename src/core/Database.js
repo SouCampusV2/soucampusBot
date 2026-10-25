@@ -62,6 +62,18 @@ function runMigrations(db) {
   addTicketColumn('status', 'TEXT');
   addTicketColumn('channel_delete_at', 'INTEGER');
   addTicketColumn('quote_counter_msg_id', 'TEXT');
+  addTicketColumn('order_card_msg_id', 'TEXT');
+  addTicketColumn('completed_at', 'INTEGER');
+  // Orders completed before completed_at existed: use the creation time as a stand-in.
+  db.prepare(
+    "UPDATE tickets SET completed_at = CAST(strftime('%s', created_at) AS INTEGER) * 1000 WHERE completed = 1 AND completed_at IS NULL"
+  ).run();
+
+  const guildColumns = db.prepare('PRAGMA table_info(guild_config)').all().map((c) => c.name);
+  if (!guildColumns.includes('channel_log')) {
+    db.exec('ALTER TABLE guild_config ADD COLUMN channel_log TEXT');
+    logger.info('Migration: added column', { table: 'guild_config', column: 'channel_log' });
+  }
   normalizeDeadlines(db);
   backfillStatus(db);
 

@@ -6,6 +6,7 @@ import { run, get, query } from '../../core/Database.js';
 import { logger } from '../../utils/logger.js';
 import { randomBytes } from 'crypto';
 import { initialStatus } from './TicketStatus.js';
+import { ticketEvents } from './events.js';
 import { parseDeadline } from '../../utils/dates.js';
 
 /**
@@ -29,6 +30,7 @@ export function createTicket(data) {
       [id, data.type, initialStatus(data.type), data.guildId ?? null, data.clientId, data.clientChannelId ?? null]
     );
     logger.info('Ticket created', { ticketId: id, type: data.type, clientId: data.clientId });
+    ticketEvents.emit('created', { ticketId: id, type: data.type, guildId: data.guildId ?? null, clientId: data.clientId });
     return { id };
   } catch (err) {
     logger.error('TicketRepository.createTicket failed', { error: err.message });

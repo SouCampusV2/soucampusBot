@@ -9,6 +9,7 @@
 
 import { run, get } from '../../core/Database.js';
 import { logger } from '../../utils/logger.js';
+import { ticketEvents } from './events.js';
 
 export const STATUS = {
   FORM: 'form', // order: client is filling the form
@@ -44,7 +45,7 @@ const TRANSITIONS = {
 const SIDE_EFFECTS = {
   [STATUS.ASSIGNED]: (extra) => ({ assigned_freelancer_id: extra.assignedFreelancerId }),
   [STATUS.PAID]: () => ({ payment_confirmed: 1 }),
-  [STATUS.COMPLETED]: () => ({ completed: 1 }),
+  [STATUS.COMPLETED]: () => ({ completed: 1, completed_at: Date.now() }),
 };
 
 /**
@@ -74,7 +75,7 @@ export function allowedFrom(type, to) {
  * @returns {boolean} true if the ticket moved
  */
 export function transitionTicket(ticketId, to, extra = {}) {
-  const ticket = get('SELECT type, status FROM tickets WHERE id = ?', [ticketId]);
+  const ticket = get('SELECT type, status, guild_id FROM tickets WHERE id = ?', [ticketId]);
   if (!ticket) return false;
   const from = allowedFrom(ticket.type, to);
   if (!from.length) return false;
@@ -88,6 +89,7 @@ export function transitionTicket(ticketId, to, extra = {}) {
   );
   if (changes === 1) {
     logger.info('Ticket status changed', { ticketId, from: ticket.status, to });
+    ticketEvents.emit('status', { ticketId, type: ticket.type, guildId: ticket.guild_id, from: ticket.status, to });
     return true;
   }
   return false;

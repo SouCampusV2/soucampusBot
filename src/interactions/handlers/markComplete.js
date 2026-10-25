@@ -3,7 +3,8 @@
  */
 
 import { MessageFlags } from 'discord.js';
-import { getTicketById, setTicketCompleted } from '../../modules/tickets/TicketRepository.js';
+import { getTicketById } from '../../modules/tickets/TicketRepository.js';
+import { STATUS, transitionTicket } from '../../modules/tickets/TicketStatus.js';
 import { isManagerOrAdmin, getFreelancerRole } from '../../utils/permissions.js';
 import { getSetting } from '../../core/GuildConfig.js';
 import { leaveReviewButtonRow } from '../../embeds/templates.js';
@@ -26,12 +27,12 @@ export async function handleMarkComplete(interaction, parts) {
     await interaction.reply({ content: 'Ticket or channel not found.', flags: MessageFlags.Ephemeral });
     return;
   }
-  if (ticket.completed) {
-    await interaction.reply({ content: 'Order is already marked complete.', flags: MessageFlags.Ephemeral });
+  // paid → completed; refused if already complete or payment not confirmed yet.
+  if (!transitionTicket(ticketId, STATUS.COMPLETED)) {
+    await interaction.reply({ content: 'Order is already complete, or payment has not been confirmed yet.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
-    setTicketCompleted(ticketId);
     // Answer first, then do the slow channel work (see confirmPayment.js for why).
     await interaction.update({
       content: (interaction.message.content || '') + '\n\n✅ Marked complete.',

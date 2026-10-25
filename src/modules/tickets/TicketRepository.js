@@ -5,6 +5,7 @@
 import { run, get, query } from '../../core/Database.js';
 import { logger } from '../../utils/logger.js';
 import { randomBytes } from 'crypto';
+import { initialStatus } from './TicketStatus.js';
 
 /**
  * Generate short unique ticket id.
@@ -23,8 +24,8 @@ export function createTicket(data) {
   const id = generateTicketId();
   try {
     run(
-      `INSERT INTO tickets (id, type, guild_id, client_id, client_channel_id) VALUES (?, ?, ?, ?, ?)`,
-      [id, data.type, data.guildId ?? null, data.clientId, data.clientChannelId ?? null]
+      `INSERT INTO tickets (id, type, status, guild_id, client_id, client_channel_id) VALUES (?, ?, ?, ?, ?, ?)`,
+      [id, data.type, initialStatus(data.type), data.guildId ?? null, data.clientId, data.clientChannelId ?? null]
     );
     logger.info('Ticket created', { ticketId: id, type: data.type, clientId: data.clientId });
     return { id };
@@ -110,22 +111,6 @@ export function setClientChannelId(ticketId, clientChannelId) {
  */
 export function setFreelancerChannelId(ticketId, freelancerChannelId) {
   run('UPDATE tickets SET freelancer_channel_id = ? WHERE id = ?', [freelancerChannelId, ticketId]);
-}
-
-/**
- * Set payment_confirmed = 1 for ticket (STEP 8).
- * @param {string} ticketId
- */
-export function setPaymentConfirmed(ticketId) {
-  run('UPDATE tickets SET payment_confirmed = 1 WHERE id = ?', [ticketId]);
-}
-
-/**
- * Set completed = 1 for ticket (STEP 10).
- * @param {string} ticketId
- */
-export function setTicketCompleted(ticketId) {
-  run('UPDATE tickets SET completed = 1 WHERE id = ?', [ticketId]);
 }
 
 /**

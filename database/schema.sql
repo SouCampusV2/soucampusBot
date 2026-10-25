@@ -3,14 +3,15 @@
 CREATE TABLE IF NOT EXISTS tickets (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL,              -- 'order' | 'help' | 'application'
+  status TEXT,                     -- lifecycle stage, see src/modules/tickets/TicketStatus.js
   guild_id TEXT,
   client_id TEXT NOT NULL,
   client_channel_id TEXT,
   freelancer_channel_id TEXT,
   assigned_freelancer_id TEXT,
   deadline TEXT,
-  payment_confirmed INTEGER DEFAULT 0,
-  completed INTEGER DEFAULT 0,
+  payment_confirmed INTEGER DEFAULT 0,  -- legacy, derived from status; written, never read
+  completed INTEGER DEFAULT 0,          -- legacy, derived from status; written, never read
   relay_client_msg_id TEXT,        -- last relay message id in client channel (for reply references)
   relay_freelancer_msg_id TEXT,    -- last relay message id in freelancer channel
   quote_channel_due_at INTEGER,    -- epoch ms: when quote channel should be created (STEP 4), NULL once done

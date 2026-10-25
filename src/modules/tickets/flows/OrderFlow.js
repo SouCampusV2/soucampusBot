@@ -13,6 +13,7 @@ import {
   getPendingQuoteChannelTickets,
 } from '../TicketRepository.js';
 import { getSetting } from '../../../core/GuildConfig.js';
+import { STATUS, transitionTicket } from '../TicketStatus.js';
 import {
   orderBudgetSelectRow,
   getOrderSummaryPayload,
@@ -51,12 +52,13 @@ export async function startOrderFlow(channel, ticketId) {
 }
 
 /**
- * Get current step from number of saved fields. 0 = no fields, 8 = all done.
+ * The form is complete once the ticket left the FORM stage (budget picked → OPEN).
+ * Replaces counting rows in ticket_fields, which broke as soon as a field was added or left empty.
  * @param {string} ticketId
- * @returns {number}
+ * @returns {boolean}
  */
-export function getCurrentStep(ticketId) {
-  return getTicketFields(ticketId).length;
+export function isFormComplete(ticketId) {
+  return getTicketById(ticketId)?.status !== STATUS.FORM;
 }
 
 /**
@@ -71,7 +73,7 @@ export async function handleStartOrder(interaction, parts) {
     return;
   }
   if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (getCurrentStep(ticketId) >= 8) {
+  if (isFormComplete(ticketId)) {
     await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
@@ -92,7 +94,7 @@ export async function handleOrderForm1Modal(interaction, parts) {
     return;
   }
   if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (getCurrentStep(ticketId) >= 8) {
+  if (isFormComplete(ticketId)) {
     await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
@@ -124,7 +126,7 @@ export async function handleOrderForm2(interaction, parts) {
     return;
   }
   if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (getCurrentStep(ticketId) >= 8) {
+  if (isFormComplete(ticketId)) {
     await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
@@ -145,7 +147,7 @@ export async function handleOrderForm2Modal(interaction, parts) {
     return;
   }
   if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (getCurrentStep(ticketId) >= 8) {
+  if (isFormComplete(ticketId)) {
     await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
@@ -186,6 +188,11 @@ export async function handleOrderBudgetSelect(interaction, parts) {
   const value = interaction.values?.[0] || '';
   if (!value) {
     await interaction.reply({ content: 'Please select a budget.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  // form → open. Only the first pick wins, so the quote channel is scheduled exactly once.
+  if (!transitionTicket(ticketId, STATUS.OPEN)) {
+    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
   saveTicketField(ticketId, ORDER_QUESTION_KEYS[7], value);

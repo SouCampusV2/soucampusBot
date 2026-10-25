@@ -5,6 +5,7 @@
 import { run, get, query } from '../../core/Database.js';
 import { logger } from '../../utils/logger.js';
 import { randomBytes } from 'crypto';
+import { STATUS, transitionTicket } from '../tickets/TicketStatus.js';
 
 function generateId() {
   return randomBytes(6).toString('hex');
@@ -51,14 +52,15 @@ export function getProposalsByTicketId(ticketId) {
 /**
  * Why a freelancer may NOT quote on this ticket right now, or null if they may.
  * One rule for both the Submit Quote button and its modal.
- * @param {{ id: string, assigned_freelancer_id?: string, completed?: number }} ticket
+ * @param {{ id: string, status: string }} ticket
  * @param {string} freelancerId
  * @returns {string | null}
  */
 export function quoteRefusal(ticket, freelancerId) {
-  if (ticket.assigned_freelancer_id || ticket.completed) {
+  if ([STATUS.ASSIGNED, STATUS.PAID, STATUS.COMPLETED].includes(ticket.status)) {
     return 'This order already has a freelancer — quotes are closed.';
   }
+  if (ticket.status !== STATUS.OPEN) return 'This order is not accepting quotes.';
   const pending = get(
     "SELECT id FROM proposals WHERE ticket_id = ? AND freelancer_id = ? AND status = 'pending'",
     [ticket.id, freelancerId]
@@ -68,15 +70,29 @@ export function quoteRefusal(ticket, freelancerId) {
 }
 
 /**
- * Set proposal status to accepted and assign freelancer to ticket.
+ * Accept a proposal: move the ticket open → assigned (with the freelancer) and mark the proposal.
+ * The ticket transition goes first and decides: if the order is no longer open (another quote
+ * was accepted a moment ago), nothing is written.
  * @param {string} proposalId
  * @param {string} ticketId
  * @param {string} freelancerId
+ * @returns {boolean} true if accepted
  */
 export function acceptProposal(proposalId, ticketId, freelancerId) {
+  if (!transitionTicket(ticketId, STATUS.ASSIGNED, { assignedFreelancerId: freelancerId })) return false;
   run('UPDATE proposals SET status = ? WHERE id = ?', ['accepted', proposalId]);
-  run('UPDATE tickets SET assigned_freelancer_id = ? WHERE id = ?', [freelancerId, ticketId]);
   logger.info('Proposal accepted', { proposalId, ticketId, freelancerId });
+  return true;
+}
+
+/**
+ * Number of quotes and declines for the client-side counter (STEP 7).
+ * @param {string} ticketId
+ * @returns {{ quotes: number }}
+ */
+export function countProposals(ticketId) {
+  const row = get('SELECT COUNT(*) AS n FROM proposals WHERE ticket_id = ?', [ticketId]);
+  return { quotes: row?.n ?? 0 };
 }
 
 /**

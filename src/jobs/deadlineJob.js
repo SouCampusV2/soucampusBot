@@ -18,7 +18,7 @@ function getTicketsDueWithin24h() {
        WHERE deadline IS NOT NULL AND deadline != ''
          AND date(deadline) <= date('now', '+1 day')
          AND date(deadline) >= date('now')
-         AND (completed IS NULL OR completed = 0)`
+         AND status IN ('open', 'assigned', 'paid')`
     );
   } catch (err) {
     logger.error('deadlineJob getTicketsDueWithin24h failed', { error: err.message });

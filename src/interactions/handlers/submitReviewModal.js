@@ -4,6 +4,7 @@
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
+import { STATUS } from '../../modules/tickets/TicketStatus.js';
 import { getReviewByTicketId, createReview } from '../../modules/reviews/ReviewRepository.js';
 import { reviewEmbed } from '../../embeds/templates.js';
 import { getSetting } from '../../core/GuildConfig.js';
@@ -21,7 +22,7 @@ export async function handleSubmitReviewModal(interaction, parts) {
     await interaction.reply({ content: 'Ticket not found or you are not the client.', flags: MessageFlags.Ephemeral });
     return;
   }
-  if (!ticket.completed) {
+  if (ticket.status !== STATUS.COMPLETED) {
     await interaction.reply({ content: 'Order is not marked complete yet.', flags: MessageFlags.Ephemeral });
     return;
   }

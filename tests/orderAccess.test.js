@@ -5,7 +5,7 @@ import { fakeGuild, fakeMember, fakeChannel, fakeClient, fakeInteraction, answer
 import { handleEditOrder } from '../src/interactions/handlers/editOrder.js';
 import { handleEditOrderModal } from '../src/interactions/handlers/editOrderModal.js';
 import { handleStartOrder, handleOrderForm1Modal, handleOrderForm2, handleOrderForm2Modal, handleOrderBudgetSelect } from '../src/modules/tickets/flows/OrderFlow.js';
-import { getTicketFields } from '../src/modules/tickets/TicketRepository.js';
+import { getTicketFields, getTicketById } from '../src/modules/tickets/TicketRepository.js';
 
 function setup(guildId) {
   const guild = fakeGuild({ id: guildId });
@@ -17,6 +17,24 @@ function setup(guildId) {
 }
 
 const as = (s, member, extra = {}) => fakeInteraction({ client: s.discord, member, guild: s.guild, ...extra });
+
+test('picking a budget finishes the form once; a second pick is refused', async () => {
+  const guild = fakeGuild({ id: 'g-access-budget' });
+  const client = fakeMember(guild);
+  const ticketId = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: fakeChannel(guild).id, inForm: true });
+  const s = { guild, discord: fakeClient() };
+
+  const first = as(s, client, { values: ['100-500'] });
+  await handleOrderBudgetSelect(first, ['order_budget', ticketId]);
+  assert.equal(answerKind(first), 'update');
+  assert.equal(getTicketById(ticketId).status, 'open');
+
+  const second = as(s, client, { values: ['1000+'] });
+  await handleOrderBudgetSelect(second, ['order_budget', ticketId]);
+  assert.equal(answerKind(second), 'reply');
+  const budget = getTicketFields(ticketId).find((f) => f.field_name === 'budget');
+  assert.equal(budget.field_value, '100-500');
+});
 
 test('only the client can open Edit Order', async () => {
   const s = setup('g-access-edit');

@@ -4,13 +4,8 @@
  */
 
 import { initDatabase } from '../../src/core/Database.js';
-import {
-  createTicket,
-  saveTicketField,
-  setFreelancerChannelId,
-  setPaymentConfirmed,
-  setTicketCompleted,
-} from '../../src/modules/tickets/TicketRepository.js';
+import { createTicket, saveTicketField, setFreelancerChannelId } from '../../src/modules/tickets/TicketRepository.js';
+import { STATUS, transitionTicket } from '../../src/modules/tickets/TicketStatus.js';
 import { createProposal, acceptProposal } from '../../src/modules/proposals/ProposalRepository.js';
 import { setSetting } from '../../src/core/GuildConfig.js';
 
@@ -20,8 +15,9 @@ export { setSetting };
 
 /**
  * Create an order ticket in the DB, optionally further along the lifecycle.
+ * By default the order has finished its form (status open); `inForm` keeps it in the form stage.
  * @param {{ guildId: string, clientId: string, clientChannelId: string, freelancerChannelId?: string,
- *           assignedFreelancerId?: string, completed?: boolean, paid?: boolean }} opts
+ *           assignedFreelancerId?: string, completed?: boolean, paid?: boolean, inForm?: boolean }} opts
  * @returns {string} ticketId
  */
 export function seedOrder(opts) {
@@ -32,6 +28,8 @@ export function seedOrder(opts) {
     clientChannelId: opts.clientChannelId,
   });
   saveTicketField(id, 'need', 'A spawn castle');
+  if (opts.inForm) return id;
+  transitionTicket(id, STATUS.OPEN);
   if (opts.freelancerChannelId) setFreelancerChannelId(id, opts.freelancerChannelId);
   if (opts.assignedFreelancerId) {
     const { id: proposalId } = createProposal({
@@ -43,7 +41,7 @@ export function seedOrder(opts) {
     });
     acceptProposal(proposalId, id, opts.assignedFreelancerId);
   }
-  if (opts.paid) setPaymentConfirmed(id);
-  if (opts.completed) setTicketCompleted(id);
+  if (opts.paid || opts.completed) transitionTicket(id, STATUS.PAID);
+  if (opts.completed) transitionTicket(id, STATUS.COMPLETED);
   return id;
 }

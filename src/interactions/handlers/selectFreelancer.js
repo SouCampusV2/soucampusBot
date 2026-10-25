@@ -5,8 +5,7 @@
 
 import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
-import { getProposalsByTicketId } from '../../modules/proposals/ProposalRepository.js';
-import { acceptProposal } from '../../modules/proposals/ProposalRepository.js';
+import { getProposalsByTicketId, acceptProposal } from '../../modules/proposals/ProposalRepository.js';
 import { confirmPaymentButtonRow } from '../../embeds/templates.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
@@ -27,18 +26,18 @@ export async function handleSelectFreelancer(interaction, parts) {
     await interaction.reply({ content: 'Only the client can select a freelancer.', flags: MessageFlags.Ephemeral });
     return;
   }
-  if (ticket.assigned_freelancer_id) {
-    await interaction.reply({ content: 'A freelancer has already been selected for this order.', flags: MessageFlags.Ephemeral });
-    return;
-  }
   const proposals = getProposalsByTicketId(ticketId);
   const proposal = proposals.find((p) => p.freelancer_id === freelancerId && p.status === 'pending');
   if (!proposal) {
-    await interaction.reply({ content: 'Quote not found or already accepted.', flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: 'Quote not found or already answered.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  // acceptProposal moves the ticket open → assigned; false means the order is not open anymore.
+  if (!acceptProposal(proposal.id, ticketId, freelancerId)) {
+    await interaction.reply({ content: 'A freelancer has already been selected for this order.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
-    acceptProposal(proposal.id, ticketId, freelancerId);
     // Answer first, then do the slow channel work (see confirmPayment.js for why).
     await interaction.update({
       content: `✅ Freelancer <@${freelancerId}> has been assigned to your order.`,

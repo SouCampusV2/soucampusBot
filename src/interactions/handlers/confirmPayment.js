@@ -3,7 +3,8 @@
  */
 
 import { MessageFlags } from 'discord.js';
-import { getTicketById, setPaymentConfirmed } from '../../modules/tickets/TicketRepository.js';
+import { getTicketById } from '../../modules/tickets/TicketRepository.js';
+import { STATUS, transitionTicket } from '../../modules/tickets/TicketStatus.js';
 import { isManagerOrAdmin } from '../../utils/permissions.js';
 import { run } from '../../core/Database.js';
 import { markCompleteButtonRow } from '../../embeds/templates.js';
@@ -26,12 +27,12 @@ export async function handleConfirmPayment(interaction, parts) {
     await interaction.reply({ content: 'Ticket or freelancer not found.', flags: MessageFlags.Ephemeral });
     return;
   }
-  if (ticket.payment_confirmed) {
-    await interaction.reply({ content: 'Payment already confirmed for this order.', flags: MessageFlags.Ephemeral });
+  // assigned → paid; refused if already paid (double click) or not at that stage.
+  if (!transitionTicket(ticketId, STATUS.PAID)) {
+    await interaction.reply({ content: 'Payment is already confirmed, or the order is not at the payment stage.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
-    setPaymentConfirmed(ticketId);
     run('INSERT INTO action_log (ticket_id, actor_id, action, detail) VALUES (?, ?, ?, ?)', [
       ticketId,
       interaction.user.id,

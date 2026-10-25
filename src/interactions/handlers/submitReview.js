@@ -4,6 +4,7 @@
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
+import { STATUS } from '../../modules/tickets/TicketStatus.js';
 import { getReviewByTicketId } from '../../modules/reviews/ReviewRepository.js';
 import { buildSubmitReviewModal } from '../../embeds/templates.js';
 
@@ -22,7 +23,7 @@ export async function handleSubmitReview(interaction, parts) {
     await interaction.reply({ content: 'Only the client can leave a review.', flags: MessageFlags.Ephemeral });
     return;
   }
-  if (!ticket.completed) {
+  if (ticket.status !== STATUS.COMPLETED) {
     await interaction.reply({ content: 'Order is not marked complete yet.', flags: MessageFlags.Ephemeral });
     return;
   }

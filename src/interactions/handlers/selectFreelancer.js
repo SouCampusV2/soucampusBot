@@ -3,41 +3,48 @@
  * Adds freelancer to client (order) channel so they share one chat.
  */
 
-import { PermissionFlagsBits } from 'discord.js';
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
 import { getProposalsByTicketId } from '../../modules/proposals/ProposalRepository.js';
 import { acceptProposal } from '../../modules/proposals/ProposalRepository.js';
 import { confirmPaymentButtonRow } from '../../embeds/templates.js';
+import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
 export async function handleSelectFreelancer(interaction, parts) {
   const ticketId = parts[1];
   const freelancerId = parts[2];
   if (!ticketId || !freelancerId) {
-    await interaction.reply({ content: 'Invalid data.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid data.', flags: MessageFlags.Ephemeral });
     return;
   }
   const ticket = getTicketById(ticketId);
   if (!ticket) {
-    await interaction.reply({ content: 'Ticket not found.', ephemeral: true });
+    await interaction.reply({ content: 'Ticket not found.', flags: MessageFlags.Ephemeral });
     return;
   }
   if (ticket.client_id !== interaction.user.id) {
-    await interaction.reply({ content: 'Only the client can select a freelancer.', ephemeral: true });
+    await interaction.reply({ content: 'Only the client can select a freelancer.', flags: MessageFlags.Ephemeral });
     return;
   }
   if (ticket.assigned_freelancer_id) {
-    await interaction.reply({ content: 'A freelancer has already been selected for this order.', ephemeral: true });
+    await interaction.reply({ content: 'A freelancer has already been selected for this order.', flags: MessageFlags.Ephemeral });
     return;
   }
   const proposals = getProposalsByTicketId(ticketId);
   const proposal = proposals.find((p) => p.freelancer_id === freelancerId && p.status === 'pending');
   if (!proposal) {
-    await interaction.reply({ content: 'Quote not found or already accepted.', ephemeral: true });
+    await interaction.reply({ content: 'Quote not found or already accepted.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
     acceptProposal(proposal.id, ticketId, freelancerId);
+    // Answer first, then do the slow channel work (see confirmPayment.js for why).
+    await interaction.update({
+      content: `✅ Freelancer <@${freelancerId}> has been assigned to your order.`,
+      components: [],
+      embeds: interaction.message.embeds,
+    });
     const clientChannel = ticket.client_channel_id
       ? await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null)
       : null;
@@ -56,14 +63,9 @@ export async function handleSelectFreelancer(interaction, parts) {
         components: [confirmPaymentButtonRow(ticketId)],
       });
     }
-    await interaction.update({
-      content: `✅ Freelancer <@${freelancerId}> has been assigned to your order.`,
-      components: [],
-      embeds: interaction.message.embeds,
-    });
     logger.info('Freelancer selected', { ticketId, freelancerId });
   } catch (err) {
     logger.error('select_freelancer failed', { ticketId, error: err.message });
-    await interaction.reply({ content: 'Something went wrong.', ephemeral: true }).catch(() => {});
+    await replyError(interaction, 'Something went wrong.');
   }
 }

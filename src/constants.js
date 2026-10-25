@@ -42,7 +42,7 @@ export const PREFIX = {
   DECLINE_ORDER: 'decline_order',
   /** Submit Quote modal submit — customId submit_quote_modal:ticketId */
   SUBMIT_QUOTE_MODAL: 'submit_quote_modal',
-  /** Select this Freelancer / Принять (client only) — customId select_freelancer:ticketId:freelancerId */
+  /** Accept a quote = select this freelancer (client only) — customId select_freelancer:ticketId:freelancerId */
   SELECT_FREELANCER: 'select_freelancer',
   /** Contact freelancer — create discussion thread (client only) — customId contact_freelancer:ticketId:freelancerId */
   CONTACT_FREELANCER: 'contact_freelancer',
@@ -83,11 +83,13 @@ export const ORDER_QUESTION_KEYS = [
 ];
 
 /** Budget options for order dialog step 8 (Select Menu values). */
+// Euros, same currency as soucampus.online (owner's decision 2026-10-25). Values are unchanged,
+// so budgets already saved in ticket_fields keep meaning the same ranges.
 export const ORDER_BUDGET_OPTIONS = [
-  { label: '<$100', value: '<100' },
-  { label: '$100–$500', value: '100-500' },
-  { label: '$501–$1000', value: '501-1000' },
-  { label: '$1000+', value: '1000+' },
+  { label: '<€100', value: '<100' },
+  { label: '€100–€500', value: '100-500' },
+  { label: '€501–€1000', value: '501-1000' },
+  { label: '€1000+', value: '1000+' },
 ];
 
 /** Rate limit: max 1 ticket per user per 60 seconds */

@@ -5,6 +5,7 @@
 
 import { Events } from 'discord.js';
 import { logger } from '../utils/logger.js';
+import { replyError } from '../utils/replies.js';
 
 // Map: prefix (e.g. 'confirm_ticket') -> async handler(interaction, parts)
 const handlers = new Map();
@@ -62,14 +63,7 @@ export function attachToClient(client) {
           await handler(interaction);
         } catch (err) {
           logger.error('Slash command handler error', { commandName: interaction.commandName, error: err.message });
-          try {
-            const reply = { content: 'Something went wrong.', ephemeral: true };
-            if (interaction.replied || interaction.deferred) {
-              await interaction.followUp(reply).catch(() => {});
-            } else {
-              await interaction.reply(reply).catch(() => {});
-            }
-          } catch (_) {}
+          await replyError(interaction);
         }
         return;
       }
@@ -93,14 +87,7 @@ export function attachToClient(client) {
         customId,
         error: err.message,
       });
-      try {
-        const reply = { content: 'Something went wrong.', ephemeral: true };
-        if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(reply).catch(() => {});
-        } else {
-          await interaction.reply(reply).catch(() => {});
-        }
-      } catch (_) {}
+      await replyError(interaction);
     }
   });
 }

@@ -49,6 +49,25 @@ export function getProposalsByTicketId(ticketId) {
 }
 
 /**
+ * Why a freelancer may NOT quote on this ticket right now, or null if they may.
+ * One rule for both the Submit Quote button and its modal.
+ * @param {{ id: string, assigned_freelancer_id?: string, completed?: number }} ticket
+ * @param {string} freelancerId
+ * @returns {string | null}
+ */
+export function quoteRefusal(ticket, freelancerId) {
+  if (ticket.assigned_freelancer_id || ticket.completed) {
+    return 'This order already has a freelancer — quotes are closed.';
+  }
+  const pending = get(
+    "SELECT id FROM proposals WHERE ticket_id = ? AND freelancer_id = ? AND status = 'pending'",
+    [ticket.id, freelancerId]
+  );
+  if (pending) return 'You already sent a quote for this order. Wait for the client to answer it.';
+  return null;
+}
+
+/**
  * Set proposal status to accepted and assign freelancer to ticket.
  * @param {string} proposalId
  * @param {string} ticketId

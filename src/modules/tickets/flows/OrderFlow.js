@@ -27,9 +27,10 @@ import {
 } from '../../../embeds/templates.js';
 import { ORDER_QUESTION_KEYS } from '../../../constants.js';
 import { getQuoteChannelName } from '../../../utils/channelNaming.js';
-import { getManagerRole, getFreelancerRole } from '../../../utils/permissions.js';
+import { getManagerRole, getFreelancerRole, ensureTicketClient } from '../../../utils/permissions.js';
+import { replyError } from '../../../utils/replies.js';
 import { logger } from '../../../utils/logger.js';
-import { ChannelType, PermissionFlagsBits } from 'discord.js';
+import { ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 
 /**
  * Start order dialog: send message with "Fill order form" button (opens modal like Edit Order).
@@ -66,11 +67,12 @@ export function getCurrentStep(ticketId) {
 export async function handleStartOrder(interaction, parts) {
   const ticketId = parts[1];
   if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
+  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
   if (getCurrentStep(ticketId) >= 8) {
-    await interaction.reply({ content: 'Order form is already complete.', ephemeral: true });
+    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
   const fields = getTicketFields(ticketId);
@@ -86,11 +88,12 @@ export async function handleStartOrder(interaction, parts) {
 export async function handleOrderForm1Modal(interaction, parts) {
   const ticketId = parts[1];
   if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
+  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
   if (getCurrentStep(ticketId) >= 8) {
-    await interaction.reply({ content: 'Order form is already complete.', ephemeral: true });
+    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
@@ -105,7 +108,7 @@ export async function handleOrderForm1Modal(interaction, parts) {
     });
   } catch (err) {
     logger.error('Order form 1 modal failed', { ticketId, error: err.message });
-    await interaction.reply({ content: 'Failed to save.', ephemeral: true }).catch(() => {});
+    await replyError(interaction, 'Failed to save.');
   }
 }
 
@@ -117,11 +120,12 @@ export async function handleOrderForm1Modal(interaction, parts) {
 export async function handleOrderForm2(interaction, parts) {
   const ticketId = parts[1];
   if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
+  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
   if (getCurrentStep(ticketId) >= 8) {
-    await interaction.reply({ content: 'Order form is already complete.', ephemeral: true });
+    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
   const fields = getTicketFields(ticketId);
@@ -137,11 +141,12 @@ export async function handleOrderForm2(interaction, parts) {
 export async function handleOrderForm2Modal(interaction, parts) {
   const ticketId = parts[1];
   if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
+  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
   if (getCurrentStep(ticketId) >= 8) {
-    await interaction.reply({ content: 'Order form is already complete.', ephemeral: true });
+    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
@@ -153,7 +158,7 @@ export async function handleOrderForm2Modal(interaction, parts) {
     const channel = ticket?.client_channel_id
       ? await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null)
       : null;
-    await interaction.reply({ content: 'Part 2 saved. Choose your budget below.', ephemeral: true });
+    await interaction.reply({ content: 'Part 2 saved. Choose your budget below.', flags: MessageFlags.Ephemeral });
     if (channel) {
       await channel.send({
         content: 'What is your budget?',
@@ -162,7 +167,7 @@ export async function handleOrderForm2Modal(interaction, parts) {
     }
   } catch (err) {
     logger.error('Order form 2 modal failed', { ticketId, error: err.message });
-    await interaction.reply({ content: 'Failed to save.', ephemeral: true }).catch(() => {});
+    await replyError(interaction, 'Failed to save.');
   }
 }
 
@@ -174,12 +179,13 @@ export async function handleOrderForm2Modal(interaction, parts) {
 export async function handleOrderBudgetSelect(interaction, parts) {
   const ticketId = parts[1];
   if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
+  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
   const value = interaction.values?.[0] || '';
   if (!value) {
-    await interaction.reply({ content: 'Please select a budget.', ephemeral: true });
+    await interaction.reply({ content: 'Please select a budget.', flags: MessageFlags.Ephemeral });
     return;
   }
   saveTicketField(ticketId, ORDER_QUESTION_KEYS[7], value);
@@ -247,10 +253,8 @@ export async function createQuoteChannelForTicket(client, ticketId) {
       return;
     }
     let clientName = 'client';
-    try {
-      const member = await guild.members.fetch(ticket.client_id).catch(() => null);
-      if (member) clientName = member.displayName || member.user.username || clientName;
-    } catch (_) {}
+    const member = await guild.members.fetch(ticket.client_id).catch(() => null);
+    if (member) clientName = member.displayName || member.user.username || clientName;
     const channelName = getQuoteChannelName(clientName);
     // Visibility: Freelancer + Manager (both roles see quote channels)
     const managerRole = getManagerRole(guild);

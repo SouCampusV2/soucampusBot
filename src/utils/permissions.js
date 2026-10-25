@@ -2,6 +2,7 @@
  * Role/channel permission helpers.
  */
 
+import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import { ROLES } from '../constants.js';
 import { getSetting } from '../core/GuildConfig.js';
 
@@ -27,6 +28,19 @@ export function getRoleByName(guild, roleName) {
 }
 
 /**
+ * Reply-and-stop guard: true if the interaction user is the ticket's client.
+ * Otherwise answers with an ephemeral refusal and returns false.
+ * @param {import('discord.js').Interaction} interaction
+ * @param {{ client_id: string }} ticket
+ * @returns {Promise<boolean>}
+ */
+export async function ensureTicketClient(interaction, ticket) {
+  if (ticket?.client_id === interaction.user.id) return true;
+  await interaction.reply({ content: 'Only the client who opened this order can do that.', flags: MessageFlags.Ephemeral });
+  return false;
+}
+
+/**
  * Get the Manager role: by ROLE_MANAGER_ID from .env, or by name "Manager".
  * @param {import('discord.js').Guild} guild
  * @returns {import('discord.js').Role | undefined}
@@ -49,10 +63,17 @@ export function getFreelancerRole(guild) {
 }
 
 /**
- * Check if member is manager or admin.
+ * Check if member is manager or admin — the ONLY place that decides manager access.
+ * Manager = server Administrator permission, or the role set via /setup manager_role.
+ * Roles named "Manager"/"Admin" count only while no manager role is configured
+ * (single-server legacy mode); once one is configured, a look-alike name grants nothing.
  * @param {import('discord.js').GuildMember} member
  * @returns {boolean}
  */
 export function isManagerOrAdmin(member) {
+  if (!member?.roles) return false;
+  if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
+  const configuredRoleId = member.guild ? getSetting(member.guild.id, 'role_manager') : null;
+  if (configuredRoleId) return member.roles.cache.has(configuredRoleId);
   return hasRole(member, ROLES.MANAGER) || hasRole(member, ROLES.ADMIN);
 }

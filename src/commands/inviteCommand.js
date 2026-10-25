@@ -2,9 +2,10 @@
  * Slash command /invite @user — invite a user to the current ticket channel (manager/admin only).
  */
 
-import { SlashCommandBuilder } from 'discord.js';
+import { MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { getTicketByChannelId } from '../modules/tickets/TicketRepository.js';
 import { isManagerOrAdmin } from '../utils/permissions.js';
+import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
 
 export const inviteCommandData = new SlashCommandBuilder()
@@ -20,21 +21,21 @@ export async function handleInviteCommand(interaction) {
   const channel = interaction.channel;
   const member = interaction.member;
   if (!channel?.guild || !member) {
-    await interaction.reply({ content: 'This command can only be used in a server channel.', ephemeral: true });
+    await interaction.reply({ content: 'This command can only be used in a server channel.', flags: MessageFlags.Ephemeral });
     return;
   }
   if (!isManagerOrAdmin(member)) {
-    await interaction.reply({ content: 'Only a manager or admin can invite users to a ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Only a manager or admin can invite users to a ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
   const ticket = getTicketByChannelId(channel.id);
   if (!ticket) {
-    await interaction.reply({ content: 'This channel is not a ticket channel.', ephemeral: true });
+    await interaction.reply({ content: 'This channel is not a ticket channel.', flags: MessageFlags.Ephemeral });
     return;
   }
   const user = interaction.options.getUser('user');
   if (!user) {
-    await interaction.reply({ content: 'Please specify a user to invite.', ephemeral: true });
+    await interaction.reply({ content: 'Please specify a user to invite.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
@@ -44,11 +45,10 @@ export async function handleInviteCommand(interaction) {
     });
     await interaction.reply({
       content: `✅ <@${user.id}> has been invited to this ticket.`,
-      ephemeral: false,
     });
     logger.info('User invited to ticket', { ticketId: ticket.id, channelId: channel.id, userId: user.id });
   } catch (err) {
     logger.error('invite command failed', { channelId: channel.id, error: err.message });
-    await interaction.reply({ content: 'Failed to invite user.', ephemeral: true }).catch(() => {});
+    await replyError(interaction, 'Failed to invite user.');
   }
 }

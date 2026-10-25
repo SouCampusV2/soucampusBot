@@ -21,14 +21,19 @@ export function getBot(options = {}) {
     throw new Error('DISCORD_TOKEN is required. Set it in .env.');
   }
   const client = new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      // GuildMembers (privileged) is used to fetch members for role checks / display names.
-      GatewayIntentBits.GuildMembers,
-      // NOTE: MessageContent intent was removed — the order flow is fully modal/button-based,
-      // so the bot no longer needs to read message text. This lifts the 100-server verification cap.
-    ],
+    // Only the non-privileged Guilds intent. Privileged intents need Discord's approval past 100 servers:
+    // - MessageContent: not needed, the order flow is fully modal/button-based.
+    // - GuildMembers: not needed, role checks use interaction.member (sent with every interaction)
+    //   and display names come from guild.members.fetch(id), a plain REST call.
+    intents: [GatewayIntentBits.Guilds],
   });
+
+  // Without an 'error' listener, Node turns an emitted 'error' (e.g. a gateway hiccup) into a crash.
+  client.on(Events.Error, (err) => logger.error('Discord client error', { error: err.message }));
+  client.on(Events.Warn, (message) => logger.warn('Discord client warning', { message }));
+  client.on(Events.ShardDisconnect, (event, shardId) =>
+    logger.warn('Gateway disconnected, discord.js will reconnect', { shardId, code: event?.code })
+  );
 
   client.once(Events.ClientReady, (readyClient) => {
     logger.info('Bot ready', {

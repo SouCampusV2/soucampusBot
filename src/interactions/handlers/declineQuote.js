@@ -3,40 +3,40 @@
  * Sends a message to the freelancer (quote) channel: who was declined, why, and quote details.
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
 import { getProposalById, declineProposal } from '../../modules/proposals/ProposalRepository.js';
+import { DECLINE_REASON_LABELS, quoteDeclinedEmbed } from '../../embeds/templates.js';
+import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
-
-const REASON_LABELS = { price: 'цена', portfolio: 'портфолио', deadline: 'дедлайн' };
 
 export async function handleDeclineQuote(interaction, parts) {
   const ticketId = parts[1];
   const proposalId = parts[2];
   const reason = parts[3];
-  if (!ticketId || !proposalId || !reason || !['price', 'portfolio', 'deadline'].includes(reason)) {
-    await interaction.reply({ content: 'Invalid data.', ephemeral: true });
+  if (!ticketId || !proposalId || !DECLINE_REASON_LABELS[reason]) {
+    await interaction.reply({ content: 'Invalid data.', flags: MessageFlags.Ephemeral });
     return;
   }
   const ticket = getTicketById(ticketId);
   if (!ticket) {
-    await interaction.reply({ content: 'Ticket not found.', ephemeral: true });
+    await interaction.reply({ content: 'Ticket not found.', flags: MessageFlags.Ephemeral });
     return;
   }
   if (ticket.client_id !== interaction.user.id) {
-    await interaction.reply({ content: 'Only the order creator can use this button.', ephemeral: true });
+    await interaction.reply({ content: 'Only the order creator can use this button.', flags: MessageFlags.Ephemeral });
     return;
   }
   const proposal = getProposalById(proposalId);
   if (!proposal || proposal.ticket_id !== ticketId || proposal.status !== 'pending') {
-    await interaction.reply({ content: 'Quote not found or already answered.', ephemeral: true });
+    await interaction.reply({ content: 'Quote not found or already answered.', flags: MessageFlags.Ephemeral });
     return;
   }
   try {
     declineProposal(proposalId, ticketId, interaction.user.id, reason);
-    const label = REASON_LABELS[reason] || reason;
+    const label = DECLINE_REASON_LABELS[reason];
     await interaction.update({
-      content: (interaction.message.content || 'Quote received.') + `\n\n❌ Отклонено (причина: ${label}).`,
+      content: (interaction.message.content || 'Quote received.') + `\n\n❌ Declined (reason: ${label}).`,
       components: [],
       embeds: interaction.message.embeds,
     });
@@ -45,25 +45,15 @@ export async function handleDeclineQuote(interaction, parts) {
       : null;
     if (freelancerChannel) {
       let freelancerName = `<@${proposal.freelancer_id}>`;
-      try {
-        const member = await freelancerChannel.guild.members.fetch(proposal.freelancer_id).catch(() => null);
-        if (member) freelancerName = member.displayName || member.user.username || freelancerName;
-      } catch (_) {}
-      const embed = new EmbedBuilder()
-        .setColor(0xe74c3c)
-        .setTitle('Квота отклонена клиентом')
-        .setDescription(`Фрилансеру ${freelancerName} отказано. Причина: **${label}**.`)
-        .addFields(
-          { name: 'Цена', value: (proposal.price || '-').slice(0, 1024), inline: true },
-          { name: 'Дедлайн', value: (proposal.deadline || '-').slice(0, 1024), inline: true },
-          { name: 'Сообщение / портфолио', value: (proposal.message || '-').slice(0, 1024), inline: false }
-        )
-        .setTimestamp();
-      await freelancerChannel.send({ content: `<@${proposal.freelancer_id}>`, embeds: [embed] }).catch(() => {});
+      const member = await freelancerChannel.guild.members.fetch(proposal.freelancer_id).catch(() => null);
+      if (member) freelancerName = member.displayName || member.user.username || freelancerName;
+      await freelancerChannel
+        .send({ content: `<@${proposal.freelancer_id}>`, embeds: [quoteDeclinedEmbed(proposal, freelancerName, label)] })
+        .catch((err) => logger.warn('decline_quote: could not notify quote channel', { ticketId, error: err.message }));
     }
     logger.info('Quote declined by client', { proposalId, ticketId, reason });
   } catch (err) {
     logger.error('decline_quote failed', { ticketId, error: err.message });
-    await interaction.reply({ content: 'Something went wrong.', ephemeral: true }).catch(() => {});
+    await replyError(interaction, 'Something went wrong.');
   }
 }

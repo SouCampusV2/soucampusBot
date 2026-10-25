@@ -2,6 +2,7 @@
  * Handler for select_ticket_type — show Confirm button with selected type.
  */
 
+import { MessageFlags } from 'discord.js';
 import { confirmTicketButtonRow } from '../../embeds/templates.js';
 import { TICKET_TYPES } from '../../constants.js';
 
@@ -14,7 +15,7 @@ const TYPE_LABELS = {
 export async function handleSelectTicketType(interaction, parts) {
   const type = interaction.values?.[0] || parts[1];
   if (!type || !Object.values(TICKET_TYPES).includes(type)) {
-    await interaction.reply({ content: 'Invalid ticket type.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket type.', flags: MessageFlags.Ephemeral });
     return;
   }
   const label = TYPE_LABELS[type];

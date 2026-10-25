@@ -1,45 +1,56 @@
 /**
- * Handler for submit_review_modal:ticketId — save review, post in CHANNEL_REVIEWS (STEP 10).
+ * Handler for submit_review_modal:ticketId — save review, post in the reviews channel (STEP 10).
  */
 
-import { randomBytes } from 'crypto';
-import { run } from '../../core/Database.js';
+import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
+import { getReviewByTicketId, createReview } from '../../modules/reviews/ReviewRepository.js';
 import { reviewEmbed } from '../../embeds/templates.js';
 import { getSetting } from '../../core/GuildConfig.js';
+import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
 export async function handleSubmitReviewModal(interaction, parts) {
   const ticketId = parts[1];
   if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
   const ticket = getTicketById(ticketId);
   if (!ticket || ticket.client_id !== interaction.user.id) {
-    await interaction.reply({ content: 'Ticket not found or you are not the client.', ephemeral: true });
+    await interaction.reply({ content: 'Ticket not found or you are not the client.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (!ticket.completed) {
+    await interaction.reply({ content: 'Order is not marked complete yet.', flags: MessageFlags.Ephemeral });
     return;
   }
   const ratingStr = interaction.fields.getTextInputValue('review_rating')?.trim() || '0';
   const rating = parseInt(ratingStr, 10);
   if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
-    await interaction.reply({ content: 'Please enter a rating from 1 to 5.', ephemeral: true });
+    await interaction.reply({ content: 'Please enter a rating from 1 to 5.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  // Check and insert stay in one synchronous block (no await between them), so a
+  // double submit cannot slip a second review in — see docs/ARCHITECTURE.md → "Races".
+  if (getReviewByTicketId(ticketId)) {
+    await interaction.reply({ content: 'You have already reviewed this order. Thank you!', flags: MessageFlags.Ephemeral });
     return;
   }
   const comment = interaction.fields.getTextInputValue('review_comment')?.trim() || '';
   try {
-    const reviewId = randomBytes(4).toString('hex');
-    run(
-      'INSERT INTO reviews (id, ticket_id, client_id, freelancer_id, rating, comment) VALUES (?, ?, ?, ?, ?, ?)',
-      [reviewId, ticketId, ticket.client_id, ticket.assigned_freelancer_id || '', rating, comment]
-    );
-    let clientName = interaction.user.displayName || interaction.user.username || 'Client';
+    const { id: reviewId } = createReview({
+      ticketId,
+      clientId: ticket.client_id,
+      freelancerId: ticket.assigned_freelancer_id || '',
+      rating,
+      comment,
+    });
+    const clientName = interaction.user.displayName || interaction.user.username || 'Client';
     let freelancerName = 'Freelancer';
     if (ticket.assigned_freelancer_id) {
-      try {
-        const u = await interaction.client.users.fetch(ticket.assigned_freelancer_id).catch(() => null);
-        if (u) freelancerName = u.displayName || u.username || freelancerName;
-      } catch (_) {}
+      const u = await interaction.client.users.fetch(ticket.assigned_freelancer_id).catch(() => null);
+      if (u) freelancerName = u.displayName || u.username || freelancerName;
     }
     const channelReviewsId = getSetting(interaction.guildId, 'channel_reviews');
     if (channelReviewsId) {
@@ -50,10 +61,10 @@ export async function handleSubmitReviewModal(interaction, parts) {
         });
       }
     }
-    await interaction.reply({ content: 'Thank you for your review!', ephemeral: true });
+    await interaction.reply({ content: 'Thank you for your review!', flags: MessageFlags.Ephemeral });
     logger.info('Review submitted', { reviewId, ticketId });
   } catch (err) {
     logger.error('submit_review_modal failed', { ticketId, error: err.message });
-    await interaction.reply({ content: 'Failed to submit review.', ephemeral: true }).catch(() => {});
+    await replyError(interaction, 'Failed to submit review.');
   }
 }

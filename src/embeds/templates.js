@@ -367,7 +367,7 @@ export function buildSubmitQuoteModal(ticketId) {
         .setCustomId('quote_price')
         .setLabel('Your price')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('e.g. $150')
+        .setPlaceholder('e.g. €150')
         .setRequired(true)
     ),
     new ActionRowBuilder().addComponents(
@@ -403,7 +403,7 @@ export function quoteEmbed(data, freelancerUsername) {
 
 /**
  * All client quote action buttons (only order creator can use). One row, 5 buttons.
- * Принять | Связаться с фрилансером | Отказать: цена | портфолио | дедлайн
+ * Accept | Contact freelancer | Decline: price | portfolio | deadline
  * @param {string} ticketId
  * @param {string} freelancerId
  * @param {string} proposalId
@@ -412,34 +412,42 @@ export function quoteEmbed(data, freelancerUsername) {
 export function clientQuoteActionRows(ticketId, freelancerId, proposalId) {
   const accept = new ButtonBuilder()
     .setCustomId(`${PREFIX.SELECT_FREELANCER}:${ticketId}:${freelancerId}`)
-    .setLabel('Принять')
+    .setLabel('Accept')
     .setStyle(ButtonStyle.Success);
   const contact = new ButtonBuilder()
     .setCustomId(`${PREFIX.CONTACT_FREELANCER}:${ticketId}:${freelancerId}`)
-    .setLabel('Связаться с фрилансером')
+    .setLabel('Contact freelancer')
     .setStyle(ButtonStyle.Primary);
-  const declinePrice = new ButtonBuilder()
-    .setCustomId(`${PREFIX.DECLINE_QUOTE}:${ticketId}:${proposalId}:price`)
-    .setLabel('Отказать: цена')
-    .setStyle(ButtonStyle.Secondary);
-  const declinePortfolio = new ButtonBuilder()
-    .setCustomId(`${PREFIX.DECLINE_QUOTE}:${ticketId}:${proposalId}:portfolio`)
-    .setLabel('Отказать: портфолио')
-    .setStyle(ButtonStyle.Secondary);
-  const declineDeadline = new ButtonBuilder()
-    .setCustomId(`${PREFIX.DECLINE_QUOTE}:${ticketId}:${proposalId}:deadline`)
-    .setLabel('Отказать: дедлайн')
-    .setStyle(ButtonStyle.Secondary);
-  return [new ActionRowBuilder().addComponents(accept, contact, declinePrice, declinePortfolio, declineDeadline)];
+  const declineButtons = Object.entries(DECLINE_REASON_LABELS).map(([reason, label]) =>
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX.DECLINE_QUOTE}:${ticketId}:${proposalId}:${reason}`)
+      .setLabel(`Decline: ${label}`)
+      .setStyle(ButtonStyle.Secondary)
+  );
+  return [new ActionRowBuilder().addComponents(accept, contact, ...declineButtons)];
 }
 
-/** Legacy: single "Select" row; use clientQuoteActionRows(ticketId, freelancerId, proposalId) for full 5 buttons. */
-export function selectFreelancerButtonRow(ticketId, freelancerId) {
-  const btn = new ButtonBuilder()
-    .setCustomId(`${PREFIX.SELECT_FREELANCER}:${ticketId}:${freelancerId}`)
-    .setLabel('Принять')
-    .setStyle(ButtonStyle.Success);
-  return new ActionRowBuilder().addComponents(btn);
+/** Reasons a client can decline a quote with: customId value -> label. */
+export const DECLINE_REASON_LABELS = { price: 'price', portfolio: 'portfolio', deadline: 'deadline' };
+
+/**
+ * Embed posted in the quote channel when the client declines a quote.
+ * @param {{ price?: string, deadline?: string, message?: string }} proposal
+ * @param {string} freelancerName
+ * @param {string} reasonLabel
+ * @returns {EmbedBuilder}
+ */
+export function quoteDeclinedEmbed(proposal, freelancerName, reasonLabel) {
+  return new EmbedBuilder()
+    .setColor(0xe74c3c)
+    .setTitle('Quote declined by the client')
+    .setDescription(`The client declined ${freelancerName}'s quote. Reason: **${reasonLabel}**.`)
+    .addFields(
+      { name: 'Price', value: (proposal.price || '-').slice(0, 1024), inline: true },
+      { name: 'Deadline', value: (proposal.deadline || '-').slice(0, 1024), inline: true },
+      { name: 'Message / portfolio', value: (proposal.message || '-').slice(0, 1024), inline: false }
+    )
+    .setTimestamp();
 }
 
 // --- Send Message / Reply relay (STEP 6) ---
@@ -489,11 +497,11 @@ export function replyRelayButtonRow(ticketId) {
   return new ActionRowBuilder().addComponents(button);
 }
 
-/** "Close discussion" / "Закрыть дискуссию" button in discussion thread. customId: close_discussion:ticketId:threadId */
+/** "Close discussion" button in discussion thread. customId: close_discussion:ticketId:threadId */
 export function closeDiscussionButtonRow(ticketId, threadId) {
   const button = new ButtonBuilder()
     .setCustomId(`${PREFIX.CLOSE_DISCUSSION}:${ticketId}:${threadId}`)
-    .setLabel('Закрыть дискуссию')
+    .setLabel('Close discussion')
     .setStyle(ButtonStyle.Danger);
   return new ActionRowBuilder().addComponents(button);
 }

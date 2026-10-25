@@ -1,6 +1,5 @@
 /**
- * Ticket module — registers all ticket-related interactions and posts panel on ready.
- * Also: messageCreate in order ticket channels → order dialog (OrderFlow).
+ * Ticket module — registers all ticket-related interactions and commands; startup jobs on ready.
  */
 
 import { Events } from 'discord.js';
@@ -35,30 +34,28 @@ import { handleMarkComplete } from '../../interactions/handlers/markComplete.js'
 import { handleSubmitReview } from '../../interactions/handlers/submitReview.js';
 import { handleSubmitReviewModal } from '../../interactions/handlers/submitReviewModal.js';
 import { scheduleDeadlineJob } from '../../jobs/deadlineJob.js';
-import { getTicketPanelPayload } from '../../embeds/templates.js';
+import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
 import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
 import { logger } from '../../utils/logger.js';
 
 /**
- * Post the ticket panel (embed + Create Ticket button) in CHANNEL_TICKET_PANEL.
+ * Legacy single-server mode: make sure the panel exists in CHANNEL_TICKET_PANEL from .env.
+ * Servers configured with /setup panel already have their panel — it is a persistent message,
+ * so nothing is posted for them on startup.
  * @param {import('discord.js').Client} client
  */
-async function postPanel(client) {
+async function postLegacyPanel(client) {
   const channelId = process.env.CHANNEL_TICKET_PANEL;
-  if (!channelId) {
-    logger.warn('CHANNEL_TICKET_PANEL not set — ticket panel not posted');
-    return;
-  }
+  if (!channelId) return;
   try {
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (!channel) {
       logger.warn('Could not fetch CHANNEL_TICKET_PANEL', { channelId });
       return;
     }
-    const payload = getTicketPanelPayload(channel.guildId);
-    await channel.send(payload);
-    logger.info('Ticket panel posted', { channelId });
+    const posted = await ensurePanel(channel, client.user.id);
+    logger.info(posted ? 'Ticket panel posted' : 'Ticket panel already present', { channelId });
   } catch (err) {
     logger.error('Failed to post ticket panel', { error: err.message });
   }
@@ -121,7 +118,7 @@ export function registerTicketModule(client) {
   registerHandler(PREFIX.SUBMIT_REVIEW_MODAL, handleSubmitReviewModal);
 
   client.once(Events.ClientReady, async () => {
-    postPanel(client);
+    postLegacyPanel(client);
     scheduleDeadlineJob(client);
     recoverPendingQuoteChannels(client);
     await registerSlashCommands(client);

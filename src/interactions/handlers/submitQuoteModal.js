@@ -2,20 +2,28 @@
  * Handler for submit_quote_modal:ticketId — save proposal, post quote in freelancer channel and client channel with "Select this Freelancer" (STEP 5).
  */
 
+import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
-import { createProposal } from '../../modules/proposals/ProposalRepository.js';
+import { createProposal, quoteRefusal } from '../../modules/proposals/ProposalRepository.js';
 import { quoteEmbed, clientQuoteActionRows } from '../../embeds/templates.js';
+import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
 export async function handleSubmitQuoteModal(interaction, parts) {
   const ticketId = parts[1];
   if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', ephemeral: true });
+    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
   const ticket = getTicketById(ticketId);
   if (!ticket?.freelancer_channel_id || !ticket?.client_channel_id) {
-    await interaction.reply({ content: 'Ticket or channels not found.', ephemeral: true });
+    await interaction.reply({ content: 'Ticket or channels not found.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  // Re-checked here: the order may have been assigned while the modal was open.
+  const refusal = quoteRefusal(ticket, interaction.user.id);
+  if (refusal) {
+    await interaction.reply({ content: refusal, flags: MessageFlags.Ephemeral });
     return;
   }
   try {
@@ -44,10 +52,10 @@ export async function handleSubmitQuoteModal(interaction, parts) {
       });
     }
 
-    await interaction.reply({ content: 'Your quote has been sent to the client.', ephemeral: true });
+    await interaction.reply({ content: 'Your quote has been sent to the client.', flags: MessageFlags.Ephemeral });
     logger.info('Quote submitted and forwarded', { proposalId, ticketId, freelancerId });
   } catch (err) {
     logger.error('submit_quote_modal failed', { ticketId, error: err.message });
-    await interaction.reply({ content: 'Failed to submit quote.', ephemeral: true }).catch(() => {});
+    await replyError(interaction, 'Failed to submit quote.');
   }
 }

@@ -23,21 +23,27 @@ src/modules/tickets/
   TicketModule.js            регистрирует ВСЕ обработчики и команды; задачи на ready
   TicketRepository.js        SQL по tickets / ticket_fields
   TicketStatus.js            СТАДИЯ ТИКЕТА: STATUS, таблица переходов, transitionTicket, closeRefusal
+  events.js                  шина событий: created / status / review
+  OrderCard.js               живая карточка заказа (слушает status)
+  StaffLog.js                лог-канал менеджеров (слушает все события)
+  closing.js                 beginClose (синхронный шлюз) + archiveClosed (медленное)
+  Reports.js                 запросы для /orders и /stats
   flows/OrderFlow.js         форма заказа, таймер канала квот и его восстановление
   flows/ApplicationFlow.js   заявка в команду: форма, Accept/Reject (обработчики регистрируются прямо отсюда)
 src/modules/proposals/ProposalRepository.js SQL по proposals + quoteRefusal (можно ли квотировать)
-src/modules/proposals/QuoteCounter.js       живой счётчик «N quotes · M not interested» у клиента
 src/modules/reviews/ReviewRepository.js     SQL по reviews (один отзыв на тикет)
 src/interactions/handlers/   один файл = один префикс customId
 src/commands/                /setup, /invite (данные команды + обработчик)
 src/embeds/templates.js      все эмбеды, кнопки, модалки
 src/jobs/deadlineJob.js      cron 09:00 BOT_TIMEZONE: напоминания о дедлайне
-src/jobs/cleanupJob.js       раз в 10 минут: удалить каналы закрытых тикетов, чьё время пришло
+src/jobs/cleanupJob.js       раз в 10 минут: удалить каналы закрытых тикетов + гигиена брошенных форм
+src/jobs/backupJob.js        04:00: бэкап базы (только если задан BACKUP_DIR — на VPS)
 src/utils/permissions.js     isManagerOrAdmin, ensureTicketClient — ВСЕ проверки «кто ты»
 src/utils/replies.js         replyError — ответ об ошибке в любом состоянии interaction
 src/utils/panel.js           ensurePanel — панель без дублей
 src/utils/channels.js        archiveChannel / archiveQuoteChannel — в архив и только чтение
 src/utils/dates.js           parseDeadline — текст человека → 'YYYY-MM-DD'
+src/utils/pricing.js         parseSize, estimateOrder — формула цены сайта
 src/utils/                   channelNaming, rateLimit, logger, relayMessageStore
 database/schema.sql          таблицы для свежей базы
 tests/                       node --test; helpers/fakes.js (фейки Discord), helpers/db.js (база в памяти)
@@ -47,6 +53,18 @@ scripts/check-syntax.js      npm run check
 Пустые заглушки из исходной структуры (`PaymentModule`, `ReviewModule`,
 `ProposalModule`, `DeadlineChecker`, `HelpFlow`, `validator.js`) удалены
 2026-10-26: логика живёт в обработчиках и репозиториях.
+
+## События
+
+```
+transitionTicket / createTicket / отзыв ──emit──▶ ticketEvents
+                                                   ├─▶ OrderCard (status: перерисовать карточку)
+                                                   └─▶ StaffLog  (всё: строка в лог-канал)
+```
+
+Подписки — в `TicketModule.registerTicketModule`. Слушатели не бросают
+исключений (асинхронные ловят свои ошибки): событие испускается внутри
+`transitionTicket`, и упавший слушатель не должен ломать переход.
 
 ## Поток одного нажатия
 
@@ -162,3 +180,6 @@ handler(interaction, parts)
 | Новая стадия / переход тикета | `TicketStatus.js` → `TRANSITIONS` (+ `SIDE_EFFECTS`, `CLIENT_CLOSABLE`) |
 | Формат дедлайна | `utils/dates.js` → `parseDeadline` + `tests/dates.test.js` |
 | Заявка в команду | `flows/ApplicationFlow.js`, поля — `APPLICATION_FIELDS` в `constants.js` |
+| Что показывает карточка заказа | `templates.js` → `orderCardEmbed`; когда обновляется — `OrderCard.js` |
+| Новая реакция на событие тикета | слушатель на `ticketEvents` + подписка в `TicketModule` |
+| Новая слэш-команда для менеджеров | `src/commands/*`, запрос — `Reports.js` |

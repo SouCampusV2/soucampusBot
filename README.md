@@ -23,8 +23,14 @@ confirmed by a manager → delivery → review.**
   role) or Reject with a reason
 - Closing any ticket: archived read-only, deleted after 48 hours unless a
   manager keeps it
-- Explicit ticket lifecycle (one status column, one transition table), safe
-  against double clicks
+- Live order card: one pinned message with the stage timeline, quotes,
+  freelancer, agreed price, deadline and a price estimate from the map size
+- Freelancer track record on every quote (rating, reviews, delivered orders)
+- Manager tools: `/orders` (overdue first), `/stats` (funnel, conversion,
+  prices, ratings), a staff log channel, reminders and auto-close for
+  abandoned forms
+- Explicit ticket lifecycle (one status column, one transition table) and an
+  event bus that features subscribe to; safe against double clicks
 - Works on several servers at once; each server is configured with `/setup`
 - `/invite @user` for managers
 

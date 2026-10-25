@@ -31,7 +31,10 @@ src/modules/tickets/
   flows/OrderFlow.js         форма заказа, таймер канала квот и его восстановление
   flows/ApplicationFlow.js   заявка в команду: форма, Accept/Reject (обработчики регистрируются прямо отсюда)
 src/modules/proposals/ProposalRepository.js SQL по proposals + quoteRefusal (можно ли квотировать)
-src/modules/reviews/ReviewRepository.js     SQL по reviews (один отзыв на тикет)
+src/modules/reviews/ReviewRepository.js     SQL по reviews (один отзыв на тикет) + репутация фрилансера
+src/modules/site/SiteBridge.js              мост на сайт: подпись, очередь site_outbox, ретраи, черновик работы
+src/modules/site/consent.js                 кнопки согласия клиента (работа / отзыв на сайте)
+src/modules/tickets/Transcript.js           транскрипт переписки при закрытии (слушает status)
 src/interactions/handlers/   один файл = один префикс customId
 src/commands/                /setup, /invite (данные команды + обработчик)
 src/embeds/templates.js      все эмбеды, кнопки, модалки
@@ -59,7 +62,8 @@ scripts/check-syntax.js      npm run check
 ```
 transitionTicket / createTicket / отзыв ──emit──▶ ticketEvents
                                                    ├─▶ OrderCard (status: перерисовать карточку)
-                                                   └─▶ StaffLog  (всё: строка в лог-канал)
+                                                   ├─▶ StaffLog  (всё: строка в лог-канал)
+                                                   └─▶ Transcript (status → closed: файл переписки)
 ```
 
 Подписки — в `TicketModule.registerTicketModule`. Слушатели не бросают
@@ -182,4 +186,5 @@ handler(interaction, parts)
 | Заявка в команду | `flows/ApplicationFlow.js`, поля — `APPLICATION_FIELDS` в `constants.js` |
 | Что показывает карточка заказа | `templates.js` → `orderCardEmbed`; когда обновляется — `OrderCard.js` |
 | Новая реакция на событие тикета | слушатель на `ticketEvents` + подписка в `TicketModule` |
+| Что уходит на сайт и как | `docs/PHASE4.md`, `src/modules/site/*`; формат подписи держит тест-вектор |
 | Новая слэш-команда для менеджеров | `src/commands/*`, запрос — `Reports.js` |

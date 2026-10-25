@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   order_card_msg_id TEXT,          -- the order card in the client channel, edited on every change
   completed_at INTEGER,            -- epoch ms when the order was marked complete (freelancer stats)
   stale_reminded_at INTEGER,       -- epoch ms of the "your form is not finished" reminder (hygiene)
+  portfolio_consent INTEGER,       -- client allowed showing the build on the website: 1 yes, 0 no, NULL not asked/answered
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   freelancer_id TEXT NOT NULL,
   rating INTEGER,
   comment TEXT,
+  site_consent INTEGER,            -- client allowed showing the review on the website: 1 / 0 / NULL
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -59,6 +61,20 @@ CREATE TABLE IF NOT EXISTS action_log (
   action TEXT,
   detail TEXT,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Outbox to the website (phase 4): signed POSTs to /api/discord/bridge, retried until sent.
+-- key is the idempotency key (e.g. 'portfolio:<ticketId>'), also sent to the site.
+CREATE TABLE IF NOT EXISTS site_outbox (
+  key TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,              -- 'portfolio_draft' | 'review'
+  payload TEXT NOT NULL,           -- JSON
+  status TEXT NOT NULL DEFAULT 'pending',  -- 'pending' | 'sent' | 'failed'
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  sent_at INTEGER,
+  created_at INTEGER NOT NULL
 );
 
 -- Per-server (guild) configuration. Set via the /setup slash command.

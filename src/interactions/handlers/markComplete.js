@@ -7,7 +7,7 @@ import { getTicketById } from '../../modules/tickets/TicketRepository.js';
 import { STATUS, transitionTicket } from '../../modules/tickets/TicketStatus.js';
 import { isManagerOrAdmin } from '../../utils/permissions.js';
 import { archiveQuoteChannel } from '../../utils/channels.js';
-import { leaveReviewButtonRow, closeTicketButtonRow } from '../../embeds/templates.js';
+import { leaveReviewButtonRow, closeTicketButtonRow, siteConsentPayload } from '../../embeds/templates.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
@@ -44,6 +44,7 @@ export async function handleMarkComplete(interaction, parts) {
         content: 'Your order is complete! Please leave a review. When you are done, you can close the ticket.',
         components: [leaveReviewButtonRow(ticketId), closeTicketButtonRow(ticketId)],
       });
+      await clientChannel.send(siteConsentPayload(ticketId, 'portfolio'));
     }
     if (ticket.freelancer_channel_id) {
       const fc = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);

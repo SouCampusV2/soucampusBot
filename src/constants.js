@@ -82,6 +82,8 @@ export const PREFIX = {
   REJECT_APPLICATION: 'reject_application',
   /** Reject reason modal submit — customId reject_application_modal:ticketId */
   REJECT_APPLICATION_MODAL: 'reject_application_modal',
+  /** Client: may the build / the review appear on soucampus.online — site_consent:ticketId:portfolio|review:yes|no */
+  SITE_CONSENT: 'site_consent',
 };
 
 /** Team application form: field key (in ticket_fields, prefixed app_) -> modal label. Discord allows 5 inputs. */

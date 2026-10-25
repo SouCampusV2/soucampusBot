@@ -6,7 +6,7 @@ import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
 import { STATUS } from '../../modules/tickets/TicketStatus.js';
 import { getReviewByTicketId, createReview } from '../../modules/reviews/ReviewRepository.js';
-import { reviewEmbed } from '../../embeds/templates.js';
+import { reviewEmbed, siteConsentPayload } from '../../embeds/templates.js';
 import { getSetting } from '../../core/GuildConfig.js';
 import { ticketEvents } from '../../modules/tickets/events.js';
 import { replyError } from '../../utils/replies.js';
@@ -65,6 +65,8 @@ export async function handleSubmitReviewModal(interaction, parts) {
     }
     await interaction.reply({ content: 'Thank you for your review!', flags: MessageFlags.Ephemeral });
     ticketEvents.emit('review', { ticketId, guildId: ticket.guild_id, rating });
+    const clientChannel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
+    await clientChannel?.send(siteConsentPayload(ticketId, 'review'));
     logger.info('Review submitted', { reviewId, ticketId });
   } catch (err) {
     logger.error('submit_review_modal failed', { ticketId, error: err.message });

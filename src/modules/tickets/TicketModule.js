@@ -50,6 +50,7 @@ import { scheduleBackupJob } from '../../jobs/backupJob.js';
 import { attachOrderCard } from './OrderCard.js';
 import { attachStaffLog } from './StaffLog.js';
 import { attachTranscripts } from './Transcript.js';
+import { handleSiteConsent } from '../site/consent.js';
 import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
 import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
@@ -135,6 +136,7 @@ export function registerTicketModule(client) {
   registerHandler(PREFIX.SUBMIT_REVIEW, handleSubmitReview);
   registerHandler(PREFIX.SUBMIT_REVIEW_MODAL, handleSubmitReviewModal);
   registerHandler(PREFIX.CLOSE_TICKET, handleCloseTicket);
+  registerHandler(PREFIX.SITE_CONSENT, handleSiteConsent);
   registerHandler(PREFIX.KEEP_CHANNEL, handleKeepChannel);
   registerHandler(PREFIX.START_APPLICATION, handleStartApplication);
   registerHandler(PREFIX.APPLICATION_MODAL, handleApplicationModal);

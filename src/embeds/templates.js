@@ -845,6 +845,34 @@ export function buildRejectApplicationModal(ticketId) {
     );
 }
 
+// --- Website consent (phase 4) ---
+
+const CONSENT_QUESTION = {
+  portfolio:
+    '🖼️ **May we show this build in the SouCampus portfolio** (soucampus.online)? ' +
+    'Screenshots and build facts only — never your name. The team reviews it before anything is published.',
+  review: '💬 **May we show your review on soucampus.online**, signed with your Discord display name?',
+};
+
+/**
+ * Yes / No question to the client. customId: site_consent:ticketId:portfolio|review:yes|no
+ * @param {string} ticketId
+ * @param {'portfolio' | 'review'} what
+ */
+export function siteConsentPayload(ticketId, what) {
+  const button = (answer, label, style) =>
+    new ButtonBuilder().setCustomId(`${PREFIX.SITE_CONSENT}:${ticketId}:${what}:${answer}`).setLabel(label).setStyle(style);
+  return {
+    content: CONSENT_QUESTION[what],
+    components: [
+      new ActionRowBuilder().addComponents(
+        button('yes', 'Yes, show it', ButtonStyle.Success),
+        button('no', 'No, keep it private', ButtonStyle.Secondary)
+      ),
+    ],
+  };
+}
+
 // --- Closing tickets ---
 
 /** "Close ticket" button (client or manager, see closeRefusal). customId: close_ticket:ticketId */

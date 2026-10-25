@@ -1,7 +1,8 @@
 /**
  * Cleanup job, every 10 minutes (and once on startup):
  *   - delete channels of closed tickets once their channel_delete_at has passed;
- *   - hygiene: remind about order forms left unfinished for 48h, close them 24h after that.
+ *   - hygiene: remind about order forms left unfinished for 48h, close them 24h after that;
+ *   - website outbox: deliver / retry items for soucampus.online (modules/site/SiteBridge.js).
  * Sweeps over the database (not in-memory timers per ticket), so everything survives restarts.
  */
 
@@ -12,6 +13,7 @@ import {
   setStaleRemindedAt,
 } from '../modules/tickets/TicketRepository.js';
 import { beginClose, archiveClosed } from '../modules/tickets/closing.js';
+import { flushOutbox } from '../modules/site/SiteBridge.js';
 import { CLEANUP_INTERVAL_MS, FORM_REMIND_AFTER_MS, FORM_CLOSE_AFTER_REMIND_MS } from '../constants.js';
 import { logger } from '../utils/logger.js';
 
@@ -86,6 +88,8 @@ export function scheduleCleanupJob(client) {
   const sweep = () =>
     sweepDueChannels(client)
       .then(() => sweepAbandonedForms(client))
+      // Website outbox: retries anything the site did not take yet (or waits for SITE_BRIDGE_* config).
+      .then(() => flushOutbox())
       .catch((err) => logger.error('Cleanup sweep failed', { error: err.message }));
   sweep();
   setInterval(sweep, CLEANUP_INTERVAL_MS).unref();

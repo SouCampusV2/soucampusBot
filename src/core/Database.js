@@ -65,6 +65,12 @@ function runMigrations(db) {
   addTicketColumn('order_card_msg_id', 'TEXT');
   addTicketColumn('completed_at', 'INTEGER');
   addTicketColumn('stale_reminded_at', 'INTEGER');
+  addTicketColumn('portfolio_consent', 'INTEGER');
+  const reviewColumns = db.prepare('PRAGMA table_info(reviews)').all().map((c) => c.name);
+  if (!reviewColumns.includes('site_consent')) {
+    db.exec('ALTER TABLE reviews ADD COLUMN site_consent INTEGER');
+    logger.info('Migration: added column', { table: 'reviews', column: 'site_consent' });
+  }
   // Orders completed before completed_at existed: use the creation time as a stand-in.
   db.prepare(
     "UPDATE tickets SET completed_at = CAST(strftime('%s', created_at) AS INTEGER) * 1000 WHERE completed = 1 AND completed_at IS NULL"

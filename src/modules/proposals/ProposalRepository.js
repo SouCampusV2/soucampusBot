@@ -86,16 +86,6 @@ export function acceptProposal(proposalId, ticketId, freelancerId) {
 }
 
 /**
- * Number of quotes and declines for the client-side counter (STEP 7).
- * @param {string} ticketId
- * @returns {{ quotes: number }}
- */
-export function countProposals(ticketId) {
-  const row = get('SELECT COUNT(*) AS n FROM proposals WHERE ticket_id = ?', [ticketId]);
-  return { quotes: row?.n ?? 0 };
-}
-
-/**
  * Decline proposal and log reason to action_log.
  * @param {string} proposalId
  * @param {string} ticketId

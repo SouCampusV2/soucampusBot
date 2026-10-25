@@ -1,0 +1,4 @@
+# One line ending everywhere: LF in the repo and in the working tree, on Windows too.
+* text=auto eol=lf
+*.db binary
+*.png binary

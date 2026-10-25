@@ -31,6 +31,8 @@ export async function handleReplyRelayModal(interaction, parts) {
   const row = replyRelayButtonRow(ticketId);
   const ids = getRelayMessageIds(ticketId);
   try {
+    // Two channel posts can exceed Discord's 3-second answer window.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const freelancerChannel = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
     const clientChannel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
     const baseOpts = { embeds: [embed], components: [row] };
@@ -47,7 +49,7 @@ export async function handleReplyRelayModal(interaction, parts) {
     if (msgClient?.id && msgFreelancer?.id) {
       setRelayMessageIds(ticketId, { clientMsgId: msgClient.id, freelancerMsgId: msgFreelancer.id });
     }
-    await interaction.reply({ content: 'Reply sent.', flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: 'Reply sent.' });
     logger.info('Relay reply sent', { ticketId, from: interaction.user.id });
   } catch (err) {
     logger.error('reply_relay_modal failed', { ticketId, error: err.message });

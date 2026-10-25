@@ -4,7 +4,8 @@
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById, getTicketFields } from '../../modules/tickets/TicketRepository.js';
-import { buildEditOrderModal } from '../../embeds/templates.js';
+import { buildEditOrderModal, EDIT_CLOSED_TEXT } from '../../embeds/templates.js';
+import { STATUS } from '../../modules/tickets/TicketStatus.js';
 import { ensureTicketClient } from '../../utils/permissions.js';
 
 export async function handleEditOrder(interaction, parts) {
@@ -19,6 +20,10 @@ export async function handleEditOrder(interaction, parts) {
     return;
   }
   if (!(await ensureTicketClient(interaction, ticket))) return;
+  if (ticket.status !== STATUS.OPEN) {
+    await interaction.reply({ content: EDIT_CLOSED_TEXT, flags: MessageFlags.Ephemeral });
+    return;
+  }
   const fields = getTicketFields(ticketId);
   const modal = buildEditOrderModal(ticketId, fields);
   await interaction.showModal(modal);

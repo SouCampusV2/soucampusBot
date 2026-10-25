@@ -9,7 +9,14 @@ import {
   saveTicketField,
   updateTicketDeadline,
 } from '../../modules/tickets/TicketRepository.js';
-import { getOrderSummaryPayload, EDIT_ORDER_MODAL_FIELDS, deadlineWarning } from '../../embeds/templates.js';
+import {
+  getOrderSummaryPayload,
+  orderSummaryEmbedForFreelancers,
+  EDIT_ORDER_MODAL_FIELDS,
+  EDIT_CLOSED_TEXT,
+  deadlineWarning,
+} from '../../embeds/templates.js';
+import { STATUS } from '../../modules/tickets/TicketStatus.js';
 import { ensureTicketClient } from '../../utils/permissions.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
@@ -27,6 +34,10 @@ export async function handleEditOrderModal(interaction, parts) {
   }
   // A modal is its own door: re-check who submits it, the check on the button does not carry over.
   if (!(await ensureTicketClient(interaction, ticket))) return;
+  if (ticket.status !== STATUS.OPEN) {
+    await interaction.reply({ content: EDIT_CLOSED_TEXT, flags: MessageFlags.Ephemeral });
+    return;
+  }
   try {
     let warning = '';
     for (const key of EDIT_ORDER_MODAL_FIELDS) {
@@ -39,6 +50,14 @@ export async function handleEditOrderModal(interaction, parts) {
     await interaction.reply({ content: 'Order updated.' + warning, flags: MessageFlags.Ephemeral });
     const channel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
     if (channel) await channel.send(payload);
+    // Freelancers quote on what they see — show them the new version (still without the client's name).
+    if (ticket.freelancer_channel_id) {
+      const quoteChannel = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
+      await quoteChannel?.send({
+        content: '📝 The client updated the order:',
+        embeds: [orderSummaryEmbedForFreelancers(fields)],
+      });
+    }
     logger.info('Order edited, summary re-posted', { ticketId });
   } catch (err) {
     logger.error('Edit order modal failed', { ticketId, error: err.message });

@@ -61,6 +61,7 @@ function runMigrations(db) {
   addTicketColumn('quote_channel_due_at', 'INTEGER');
   addTicketColumn('status', 'TEXT');
   addTicketColumn('channel_delete_at', 'INTEGER');
+  addTicketColumn('quote_counter_msg_id', 'TEXT');
   normalizeDeadlines(db);
   backfillStatus(db);
 

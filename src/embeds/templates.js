@@ -180,6 +180,10 @@ export function getOrderSummaryPayload(fields, ticketId) {
   };
 }
 
+/** Refusal when the client tries to edit an order that a freelancer already priced and took. */
+export const EDIT_CLOSED_TEXT =
+  'This order can no longer be edited — a freelancer has already taken it. Talk to them or a manager about changes.';
+
 /** First 5 order fields shown in Edit modal (Discord limit 5 TextInputs per modal). Rest (version, extra_details, budget) stay as-is on edit. */
 export const EDIT_ORDER_MODAL_FIELDS = ['need', 'deadline', 'reference_urls', 'size', 'theme'];
 
@@ -613,6 +617,17 @@ export function deadlineWarning(text, date) {
     `\n⚠️ We could not read "${text.slice(0, 50)}" as a date, so there will be no deadline reminders. ` +
     'Use e.g. `25.12.2026` or `in 2 weeks` (Edit Order) if you want them.'
   );
+}
+
+/**
+ * Client-side counter of freelancer activity on their order.
+ * @param {{ quotes: number, declined: number }} counts
+ * @returns {string}
+ */
+export function quoteCounterText({ quotes, declined }) {
+  const q = `${quotes} ${quotes === 1 ? 'quote' : 'quotes'} received`;
+  const d = `${declined} ${declined === 1 ? 'freelancer' : 'freelancers'} not interested`;
+  return `📊 **Your order so far:** ${q} · ${d}`;
 }
 
 // --- Team application ---

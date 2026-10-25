@@ -60,9 +60,27 @@ export function fakeChannel(guild, { id = nextId(), parentId = null } = {}) {
     parentId,
     sent: [],
     overwrites: [],
+    posted: new Map(),
     async send(payload) {
-      channel.sent.push(typeof payload === 'string' ? { content: payload } : payload);
-      return { id: nextId() };
+      const data = typeof payload === 'string' ? { content: payload } : payload;
+      channel.sent.push(data);
+      const message = {
+        id: nextId(),
+        ...data,
+        async edit(p) {
+          Object.assign(message, typeof p === 'string' ? { content: p } : p);
+          return message;
+        },
+      };
+      channel.posted.set(message.id, message);
+      return message;
+    },
+    messages: {
+      fetch: async (id) => {
+        const message = channel.posted.get(id);
+        if (!message) throw new Error('Unknown Message');
+        return message;
+      },
     },
     permissionOverwrites: {
       async edit(target, perms) {

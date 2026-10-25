@@ -7,7 +7,8 @@
 1. **Тестовый сервер.** Отдельный пустой сервер для прогонов, чтобы не
    трогать настоящий SouCampus. Пригласить туда бота с правом Administrator
    (Developer Portal → OAuth2 → URL Generator → `bot` + `applications.commands`).
-   ID сервера → `GUILD_ID` в `.env` (команды появятся мгновенно).
+   ID сервера → `GUILD_ID` в `.env` **на VPS** (`/home/deploy/bocampus/.env`),
+   потом `docker compose up -d` — команды появятся мгновенно.
 2. **Второй аккаунт Discord** для роли клиента/фрилансера — без него
    половину `TEMP.md` не проверить.
 3. **Developer Portal → Bot → Privileged Gateway Intents** — выключить
@@ -17,32 +18,29 @@
    галочки — доступ, которым никто не пользуется: меньше прав — меньше вреда,
    если токен когда-нибудь утечёт. И второе: когда бот будет больше чем на
    100 серверах, Discord заставит обосновывать каждую включённую галочку.
-   Проверить, что после выключения всё работает, — `TEMP.md` § 5.
-4. **Фаза 5: SSH-доступ к VPS для Claude.** Ключ уже создан на этом
-   компьютере 2026-10-26: `~/.ssh/bocampus_vps` (приватный — никуда не
-   отправлять), публичный:
-   ```
-   ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHG/w6LJu8DUL2yhHky5tzZVNmQosg99iUP05ukuDqgG bocampus-deploy@SouCampus
-   ```
-   Отдельный пользователь `deploy`, не root: так видно, что делал бот-деплой,
-   и доступ отзывается одной строкой. В hPanel → VPS → **Browser terminal**
-   (или своим SSH под root):
+   Проверить, что после выключения всё работает, — `TEMP.md` § 8.
+4. **Swap 2 ГБ на VPS** (нужен root, `deploy` не может). Подушка на минуту,
+   когда ClamAV сканера при обновлении сигнатур удваивает память
+   (`docs/ROADMAP.md` → фаза 5). Сейчас swap нет совсем. В hPanel →
+   Browser terminal:
    ```bash
-   adduser --disabled-password --gecos "" deploy
-   mkdir -p /home/deploy/.ssh
-   echo "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHG/w6LJu8DUL2yhHky5tzZVNmQosg99iUP05ukuDqgG bocampus-deploy@SouCampus" >> /home/deploy/.ssh/authorized_keys
-   chown -R deploy:deploy /home/deploy/.ssh
-   chmod 700 /home/deploy/.ssh && chmod 600 /home/deploy/.ssh/authorized_keys
-   # если Docker уже стоит (n8n в нём?) — дать deploy запускать контейнеры:
-   getent group docker && usermod -aG docker deploy
+   fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+   echo '/swapfile none swap sw 0 0' >> /etc/fstab
+   swapon --show
    ```
-   Потом прислать **IP сервера** — больше ничего: ни пароля, ни ключей.
-   ⚠️ Группа `docker` по силе почти равна root — это цена того, что бот
-   деплоится без пароля. Отозвать доступ: удалить строку из
-   `/home/deploy/.ssh/authorized_keys` (или `deluser deploy`).
-   Если Docker не установлен — сказать, установка один раз нужна под root.
+   До запуска сканера не горит: сейчас занято ~0.9 ГБ из 4.
+5. ⚠️ **Не запускать бота локально (`npm start`)**, пока он работает на VPS:
+   один токен — один процесс, иначе каждое нажатие выполнится дважды
+   (`docs/DEPLOY.md`).
 
 ## 🟢 Закрытые
 
+- 2026-10-26 — **SSH-доступ к VPS** для деплоя: пользователь `deploy` (группа
+  `docker`), ключ `~/.ssh/bocampus_vps` на этом ПК. Отозвать: удалить строку
+  из `/home/deploy/.ssh/authorized_keys` или `deluser deploy`.
+- 2026-10-26 — **Deploy key** «VPS 76.13.156.182 (read-only)» в репозитории
+  на GitHub: сервер может только читать этот один репозиторий (решение
+  владельца — вместо отправки кода с ПК). Отозвать: GitHub → репозиторий →
+  Settings → Deploy keys.
 - 2026-10-25 — ответы на вопросы по бюджету, Team Application и хостингу
   (`docs/ROADMAP.md` → «Решения владельца»).

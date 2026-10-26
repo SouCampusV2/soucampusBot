@@ -1,58 +1,51 @@
 /**
- * Handler for reply_relay_modal:ticketId — post reply UNDER the original message in both channels (Discord reply reference). STEP 6.
+ * Handler for reply_relay_modal:conversationId — the reply is added to the same conversation
+ * card (client channel and quote channel), not posted as a new message (STEP 6).
  */
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
-import { relayMessageEmbed, replyRelayButtonRow } from '../../embeds/templates.js';
-import { getRelayMessageIds, setRelayMessageIds } from '../../utils/relayMessageStore.js';
+import { STATUS } from '../../modules/tickets/TicketStatus.js';
+import { getConversation } from '../../modules/conversations/ConversationRepository.js';
+import { speakerRole, postConversationMessage } from '../../modules/conversations/Conversation.js';
+import { OLD_RELAY_TEXT } from './replyRelay.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
 export async function handleReplyRelayModal(interaction, parts) {
-  const ticketId = parts[1];
-  if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
+  const conversation = /^\d+$/.test(parts[1] ?? '') ? getConversation(parts[1]) : undefined;
+  if (!conversation) {
+    await interaction.reply({ content: OLD_RELAY_TEXT, flags: MessageFlags.Ephemeral });
     return;
   }
-  const ticket = getTicketById(ticketId);
-  if (!ticket?.freelancer_channel_id || !ticket?.client_channel_id) {
-    await interaction.reply({ content: 'Ticket or channels not found.', flags: MessageFlags.Ephemeral });
+  const ticket = getTicketById(conversation.ticket_id);
+  // A modal is its own door: re-check who submits it.
+  const role = speakerRole(interaction.member, ticket, conversation);
+  if (!role) {
+    await interaction.reply({ content: 'Only the client and this builder can reply here.', flags: MessageFlags.Ephemeral });
     return;
   }
-  const content = interaction.fields.getTextInputValue('reply_text')?.trim() || '';
+  if (ticket.status === STATUS.CLOSED) {
+    await interaction.reply({ content: 'This order is closed.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const content = interaction.fields.getTextInputValue('message')?.trim() || '';
   if (!content) {
     await interaction.reply({ content: 'Reply cannot be empty.', flags: MessageFlags.Ephemeral });
     return;
   }
-  const isClient = interaction.user.id === ticket.client_id;
-  const authorName = isClient ? 'Client' : (interaction.user.displayName || interaction.user.username || 'Freelancer');
-  const embed = relayMessageEmbed(authorName, content);
-  const row = replyRelayButtonRow(ticketId);
-  const ids = getRelayMessageIds(ticketId);
   try {
-    // Two channel posts can exceed Discord's 3-second answer window.
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const freelancerChannel = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
-    const clientChannel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
-    const baseOpts = { embeds: [embed], components: [row] };
-    const clientOpts = ids?.clientMsgId
-      ? { ...baseOpts, reply: { messageReference: ids.clientMsgId } }
-      : baseOpts;
-    const freelancerOpts = ids?.freelancerMsgId
-      ? { ...baseOpts, reply: { messageReference: ids.freelancerMsgId } }
-      : baseOpts;
-    let msgClient = null;
-    let msgFreelancer = null;
-    if (clientChannel) msgClient = await clientChannel.send(clientOpts);
-    if (freelancerChannel) msgFreelancer = await freelancerChannel.send(freelancerOpts);
-    if (msgClient?.id && msgFreelancer?.id) {
-      setRelayMessageIds(ticketId, { clientMsgId: msgClient.id, freelancerMsgId: msgFreelancer.id });
-    }
-    await interaction.editReply({ content: 'Reply sent.' });
-    logger.info('Relay reply sent', { ticketId, from: interaction.user.id });
+    await postConversationMessage(interaction.client, conversation.id, {
+      authorId: interaction.user.id,
+      authorName: interaction.member?.displayName || interaction.user.displayName || interaction.user.username,
+      authorRole: role,
+      content,
+    });
+    await interaction.editReply({ content: '✅ Added to the conversation.' });
+    logger.info('Conversation reply', { ticketId: ticket.id, conversationId: conversation.id, role });
   } catch (err) {
-    logger.error('reply_relay_modal failed', { ticketId, error: err.message });
-    await replyError(interaction, 'Failed to send reply.');
+    logger.error('reply_relay_modal failed', { conversationId: conversation.id, error: err.message });
+    await replyError(interaction, 'Failed to send the reply.');
   }
 }

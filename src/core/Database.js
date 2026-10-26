@@ -66,6 +66,17 @@ function runMigrations(db) {
   addTicketColumn('completed_at', 'INTEGER');
   addTicketColumn('stale_reminded_at', 'INTEGER');
   addTicketColumn('portfolio_consent', 'INTEGER');
+  if (!ticketColumns.includes('number')) {
+    addTicketColumn('number', 'INTEGER');
+    // Number the tickets that already exist, per server, in the order they were opened.
+    db.exec(`
+      UPDATE tickets SET number = (
+        SELECT COUNT(*) FROM tickets t2
+        WHERE t2.guild_id IS tickets.guild_id
+          AND (t2.created_at < tickets.created_at OR (t2.created_at = tickets.created_at AND t2.rowid <= tickets.rowid))
+      )
+    `);
+  }
   const reviewColumns = db.prepare('PRAGMA table_info(reviews)').all().map((c) => c.name);
   if (!reviewColumns.includes('site_consent')) {
     db.exec('ALTER TABLE reviews ADD COLUMN site_consent INTEGER');
@@ -104,6 +115,8 @@ function runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_ticket_fields_ticket ON ticket_fields(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_proposals_ticket ON proposals(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_reviews_ticket ON reviews(ticket_id);
+    CREATE INDEX IF NOT EXISTS idx_tickets_guild_number ON tickets(guild_id, number);
+    CREATE INDEX IF NOT EXISTS idx_conversation_messages ON conversation_messages(conversation_id);
   `);
 }
 

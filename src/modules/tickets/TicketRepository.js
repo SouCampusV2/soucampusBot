@@ -25,9 +25,12 @@ function generateTicketId() {
 export function createTicket(data) {
   const id = generateTicketId();
   try {
+    // The number is computed inside the INSERT: one synchronous statement, so two tickets
+    // opened at the same moment cannot get the same number.
     run(
-      `INSERT INTO tickets (id, type, status, guild_id, client_id, client_channel_id) VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, data.type, initialStatus(data.type), data.guildId ?? null, data.clientId, data.clientChannelId ?? null]
+      `INSERT INTO tickets (id, type, status, guild_id, client_id, client_channel_id, number)
+       VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(number), 0) + 1 FROM tickets WHERE guild_id IS ?))`,
+      [id, data.type, initialStatus(data.type), data.guildId ?? null, data.clientId, data.clientChannelId ?? null, data.guildId ?? null]
     );
     logger.info('Ticket created', { ticketId: id, type: data.type, clientId: data.clientId });
     ticketEvents.emit('created', { ticketId: id, type: data.type, guildId: data.guildId ?? null, clientId: data.clientId });
@@ -132,31 +135,6 @@ export function setClientChannelId(ticketId, clientChannelId) {
  */
 export function setFreelancerChannelId(ticketId, freelancerChannelId) {
   run('UPDATE tickets SET freelancer_channel_id = ? WHERE id = ?', [freelancerChannelId, ticketId]);
-}
-
-/**
- * Persist last relay message ids (client + freelancer channel) so replies can reference them.
- * Survives bot restarts (STEP 6).
- * @param {string} ticketId
- * @param {{ clientMsgId: string, freelancerMsgId: string }} ids
- */
-export function setRelayMessageIdsDb(ticketId, ids) {
-  run('UPDATE tickets SET relay_client_msg_id = ?, relay_freelancer_msg_id = ? WHERE id = ?', [
-    ids.clientMsgId,
-    ids.freelancerMsgId,
-    ticketId,
-  ]);
-}
-
-/**
- * Read last relay message ids for a ticket.
- * @param {string} ticketId
- * @returns {{ clientMsgId: string, freelancerMsgId: string } | undefined}
- */
-export function getRelayMessageIdsDb(ticketId) {
-  const row = get('SELECT relay_client_msg_id, relay_freelancer_msg_id FROM tickets WHERE id = ?', [ticketId]);
-  if (!row || (!row.relay_client_msg_id && !row.relay_freelancer_msg_id)) return undefined;
-  return { clientMsgId: row.relay_client_msg_id, freelancerMsgId: row.relay_freelancer_msg_id };
 }
 
 /**

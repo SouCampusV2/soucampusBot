@@ -12,8 +12,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   deadline TEXT,
   payment_confirmed INTEGER DEFAULT 0,  -- legacy, derived from status; written, never read
   completed INTEGER DEFAULT 0,          -- legacy, derived from status; written, never read
-  relay_client_msg_id TEXT,        -- last relay message id in client channel (for reply references)
-  relay_freelancer_msg_id TEXT,    -- last relay message id in freelancer channel
+  number INTEGER,                  -- per-server ticket number shown to people (#1, #2, …); id stays the key
+  relay_client_msg_id TEXT,        -- legacy (2026-10-26, replaced by conversations), unused
+  relay_freelancer_msg_id TEXT,    -- legacy, unused
   quote_channel_due_at INTEGER,    -- epoch ms: when quote channel should be created (STEP 4), NULL once done
   channel_delete_at INTEGER,       -- epoch ms: when the closed ticket's channel is deleted, NULL = keep
   quote_counter_msg_id TEXT,       -- legacy (2026-10-26, replaced by the order card), unused
@@ -75,6 +76,31 @@ CREATE TABLE IF NOT EXISTS site_outbox (
   last_error TEXT,
   sent_at INTEGER,
   created_at INTEGER NOT NULL
+);
+
+-- A builder's questions to the client before quoting (Send Message), one per order and builder.
+-- Shown as ONE card in the client channel and its copy in the quote channel, edited on every message.
+CREATE TABLE IF NOT EXISTS conversations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id TEXT NOT NULL,
+  freelancer_id TEXT NOT NULL,
+  client_msg_id TEXT,              -- the card in the client channel
+  quote_msg_id TEXT,               -- its copy in the quote channel
+  thread_id TEXT,                  -- private thread (client + builder) once opened
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (ticket_id, freelancer_id),
+  FOREIGN KEY (ticket_id) REFERENCES tickets(id)
+);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id INTEGER NOT NULL,
+  author_id TEXT NOT NULL,
+  author_name TEXT,                -- display name when written (no member lookups to draw the card)
+  author_role TEXT NOT NULL,       -- 'builder' | 'client' | 'team'
+  content TEXT NOT NULL,
+  created_at INTEGER NOT NULL,     -- epoch ms
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
 
 -- Per-server (guild) configuration. Set via the /setup slash command.

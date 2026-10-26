@@ -22,7 +22,7 @@ function setup(guildId, opts = {}) {
   return { guild, client, clientChannel, quoteChannel, ticketId, discord: fakeClient([clientChannel, quoteChannel]) };
 }
 
-const cards = (channel) => [...channel.posted.values()].filter((m) => m.embeds?.[0]?.data?.title?.startsWith('Order ·'));
+const cards = (channel) => [...channel.posted.values()].filter((m) => m.embeds?.[0]?.data?.title?.startsWith('Order #'));
 const cardText = (channel) => JSON.stringify(cards(channel).at(-1).embeds[0].data);
 
 test('an open order gets one card with stage, estimate and quote activity, edited in place', async () => {

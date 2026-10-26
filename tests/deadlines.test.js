@@ -41,7 +41,7 @@ test('a manager sets a new deadline in any supported format; it is stored as a d
   assert.equal(getTicketById(s.ticketId).deadline, '2099-12-25');
   assert.ok(s.clientChannel.sent.some((m) => /Deadline updated/.test(m.content ?? '')));
   assert.equal(s.quoteChannel.sent.length, 1);
-  const card = s.clientChannel.sent.find((m) => m.embeds?.[0]?.data?.title?.startsWith('Order ·'));
+  const card = s.clientChannel.sent.find((m) => m.embeds?.[0]?.data?.title?.startsWith('Order #'));
   assert.match(JSON.stringify(card.embeds[0].data), /2099-12-25/, 'the order card shows the new deadline');
 });
 

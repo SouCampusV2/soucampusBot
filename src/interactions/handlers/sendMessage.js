@@ -1,22 +1,18 @@
 /**
- * Handler for send_message:ticketId — show modal to send message to client (STEP 6).
+ * Handler for send_message:ticketId — a builder in the quote channel opens the message modal (STEP 6).
  */
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
+import { startRefusal } from '../../modules/conversations/Conversation.js';
 import { buildSendMessageModal } from '../../embeds/templates.js';
 
 export async function handleSendMessage(interaction, parts) {
-  const ticketId = parts[1];
-  if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
+  const ticket = parts[1] ? getTicketById(parts[1]) : undefined;
+  const refusal = startRefusal(interaction.member, ticket);
+  if (refusal) {
+    await interaction.reply({ content: refusal, flags: MessageFlags.Ephemeral });
     return;
   }
-  const ticket = getTicketById(ticketId);
-  if (!ticket?.freelancer_channel_id || !ticket?.client_channel_id) {
-    await interaction.reply({ content: 'Ticket or channels not found.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const modal = buildSendMessageModal(ticketId);
-  await interaction.showModal(modal);
+  await interaction.showModal(buildSendMessageModal(ticket.id));
 }

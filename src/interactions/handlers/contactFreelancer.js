@@ -4,7 +4,8 @@
 
 import { ChannelType, MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
-import { closeDiscussionButtonRow } from '../../embeds/templates.js';
+import { getOrCreateConversation, setConversationThread } from '../../modules/conversations/ConversationRepository.js';
+import { closeDiscussionButtonRow, ticketLabel } from '../../embeds/templates.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
@@ -34,7 +35,17 @@ export async function handleContactFreelancer(interaction, parts) {
   try {
     // Thread creation + adding a member + a message: can exceed the 3-second answer window.
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const threadName = `discussion-${ticketId}`.slice(0, 100);
+    // One thread per builder: a second press leads to the one already open.
+    const conversation = getOrCreateConversation(ticketId, freelancerId);
+    const existing = conversation.thread_id
+      ? await interaction.client.channels.fetch(conversation.thread_id).catch(() => null)
+      : null;
+    if (existing) {
+      if (existing.archived) await existing.setArchived(false);
+      await interaction.editReply({ content: `Your thread with this builder: <#${existing.id}>` });
+      return;
+    }
+    const threadName = `talk-${ticket.number ?? ticketId}-${freelancerId.slice(-4)}`.slice(0, 100);
     const thread = await clientChannel.threads.create({
       name: threadName,
       type: ChannelType.PrivateThread,
@@ -45,10 +56,12 @@ export async function handleContactFreelancer(interaction, parts) {
     );
     const row = closeDiscussionButtonRow(ticketId, thread.id);
     await thread.send({
-      content: `Discussion. Client <@${ticket.client_id}> and freelancer <@${freelancerId}> can talk here.`,
+      content:
+        `🔒 Private thread for order ${ticketLabel(ticket)}: <@${ticket.client_id}> and <@${freelancerId}> can talk here freely. Close it when you are done.`,
       components: [row],
     });
-    await interaction.editReply({ content: `Created discussion thread: <#${thread.id}>` });
+    setConversationThread(conversation.id, thread.id);
+    await interaction.editReply({ content: `Created a private thread: <#${thread.id}>` });
     logger.info('Discussion thread created', { ticketId, threadId: thread.id, clientId: ticket.client_id, freelancerId });
   } catch (err) {
     logger.error('contact_freelancer failed', { ticketId, error: err.message });

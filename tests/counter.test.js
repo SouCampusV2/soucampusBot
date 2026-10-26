@@ -23,7 +23,7 @@ function setup(guildId) {
 const as = (s, member, extra = {}) => fakeInteraction({ client: s.discord, member, guild: s.guild, ...extra });
 
 // The quote counter lives in the order card (one message, edited in place) since 2026-10-26.
-const card = (channel) => [...channel.posted.values()].filter((m) => m.embeds?.[0]?.data?.title?.startsWith('Order ·'));
+const card = (channel) => [...channel.posted.values()].filter((m) => m.embeds?.[0]?.data?.title?.startsWith('Order #'));
 
 test('the client sees one live counter of quotes and declines', async () => {
   const s = setup('g-counter');
@@ -61,7 +61,7 @@ test('editing the order after the quote channel exists tells the freelancers', a
   const fields = { field_need: 'A bigger castle', field_size: '300x300', field_theme: 'Medieval', field_budget: '' };
   await handleEditOrderModal(as(s, s.client, { fields }), ['edit_order_modal', s.ticketId]);
   const update = payloadText(s.quoteChannel.sent.at(-1));
-  assert.match(update, /updated the order/i);
+  assert.match(update, /updated by the client/i);
   assert.match(update, /A bigger castle/);
   assert.match(update, new RegExp('<@' + s.client.id + '>'), 'freelancers see who the client is (owner decision 2026-10-27)');
 });

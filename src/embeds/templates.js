@@ -173,6 +173,15 @@ const v2 = (card) => ({ components: [card], flags: MessageFlags.IsComponentsV2 }
 /** V2 caps the text of a whole message at 4000 characters — long answers are clipped for display. */
 const clip = (value, max) => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
 
+/**
+ * How people call a ticket: '#42' — the per-server number (owner's decision 2026-10-26).
+ * Tickets without one (only in tests or a broken row) fall back to the internal id.
+ * @param {{ id: string, number?: number | null }} ticket
+ */
+export function ticketLabel(ticket) {
+  return ticket.number ? `#${ticket.number}` : `\`${ticket.id}\``;
+}
+
 // --- Ticket welcome cards (first message of every ticket) ---
 
 const WELCOME = {
@@ -221,10 +230,10 @@ export function ticketWelcomePayload(ticket, { closed = false } = {}) {
     .addSeparatorComponents(divider())
     .addTextDisplayComponents(text(WELCOME_BODY[ticket.type]))
     .addSeparatorComponents(divider());
-  if (closed) return v2(card.addTextDisplayComponents(text(`-# Ticket \`${ticket.id}\` · 🔒 Closed`)));
+  if (closed) return v2(card.addTextDisplayComponents(text(`-# Ticket ${ticketLabel(ticket)} · 🔒 Closed`)));
 
   card.addTextDisplayComponents(
-    text(`-# Ticket \`${ticket.id}\` · Anything unclear? Just write in this channel — a manager will answer.`)
+    text(`-# Ticket ${ticketLabel(ticket)} · Anything unclear? Just write in this channel — a manager will answer.`)
   );
   const row = new ActionRowBuilder();
   if (ticket.type === TICKET_TYPES.APPLICATION) {
@@ -245,7 +254,7 @@ export const ORDER_FIELD_LABELS = {
   need: 'What to build',
   size: 'Size',
   theme: 'Style',
-  budget: 'Budget & timeframe',
+  budget: 'Budget',
   version: 'Minecraft version',
   deadline: 'Deadline',
   extra_details: 'Extra details',
@@ -253,7 +262,7 @@ export const ORDER_FIELD_LABELS = {
 };
 
 /** Max length of each answer — keeps a whole summary under the 4000-character V2 limit. */
-const ORDER_MAX_LENGTH = { need: 1500, size: 100, theme: 100, budget: 300, deadline: 100, extra_details: 800 };
+const ORDER_MAX_LENGTH = { need: 1500, size: 100, theme: 100, budget: 200, deadline: 100, extra_details: 800 };
 
 /** '100-500' -> '€100–€500' for budgets from the old menu; free text (the modal) stays as typed. */
 export function budgetLabel(value) {
@@ -310,9 +319,9 @@ export function buildOrderModal(ticketId, fields = []) {
     ),
     question('Style / theme', 'The look you are after.', answerInput('theme', value.theme, { placeholder: 'e.g. Medieval, Japanese, Fantasy, Modern' })),
     question(
-      'Budget and timeframe',
-      'Leave empty if you do not know yet — the builders will suggest.',
-      answerInput('budget', value.budget ? budgetLabel(value.budget) : '', { paragraph: true, placeholder: 'e.g. €300, ready in 3 weeks' })
+      'Budget',
+      'Roughly how much you want to spend. Leave empty if you do not know yet.',
+      answerInput('budget', value.budget ? budgetLabel(value.budget) : '', { placeholder: 'e.g. €300' })
     ),
     question(
       ticketId ? 'Add more references' : 'References',
@@ -353,26 +362,48 @@ export function buildOrderFinishModal(ticketId, fields = []) {
 }
 
 /**
- * The answers as card text. `references` says where the files are for this reader.
+ * The answers as card sections (drawn with dividers between them): what to build · the specs,
+ * one per line · references and extras · the rough estimate. Plain labels, no emoji — the
+ * answers are the content. `references` says where the files are for this reader.
  * @param {{ field_name: string, field_value: string }[]} fields
  * @param {string | null} references - e.g. 'posted in this channel', null = none
+ * @returns {string[]}
  */
-function orderDetailsText(fields, references) {
+function orderDetailsSections(fields, references) {
   const value = Object.fromEntries(fields.map((f) => [f.field_name, (f.field_value ?? '').trim()]));
-  const missing = '`❗ not set yet`';
-  const lines = [
-    `**🧱 ${ORDER_FIELD_LABELS.need}**\n${clip(value.need || missing, 1500)}`,
-    `**📐 ${ORDER_FIELD_LABELS.size}:** ${clip(value.size || missing, 100)}   **🎨 ${ORDER_FIELD_LABELS.theme}:** ${clip(value.theme || missing, 100)}`,
-    `**🧩 ${ORDER_FIELD_LABELS.version}:** ${value.version ? versionLabel(value.version) : missing}`,
-    `**📅 ${ORDER_FIELD_LABELS.deadline}:** ${clip(value.deadline || missing, 100)}`,
-    `**💶 ${ORDER_FIELD_LABELS.budget}:** ${value.budget ? clip(budgetLabel(value.budget), 300) : '_not given — open to suggestions_'}`,
+  const notSet = '❗ _not set yet_';
+  const sections = [
+    `**${ORDER_FIELD_LABELS.need}**\n${clip(value.need || notSet, 1500)}`,
+    [
+      `**${ORDER_FIELD_LABELS.size}:** ${clip(value.size || notSet, 100)}`,
+      `**${ORDER_FIELD_LABELS.theme}:** ${clip(value.theme || notSet, 100)}`,
+      `**${ORDER_FIELD_LABELS.version}:** ${value.version ? versionLabel(value.version) : notSet}`,
+      `**${ORDER_FIELD_LABELS.deadline}:** ${clip(value.deadline || notSet, 100)}`,
+      `**${ORDER_FIELD_LABELS.budget}:** ${value.budget ? clip(budgetLabel(value.budget), 300) : '_not given — open to suggestions_'}`,
+    ].join('\n'),
   ];
-  if (references) lines.push(`**🖼️ ${ORDER_FIELD_LABELS.reference_urls}:** ${references}`);
-  if (value.reference_urls) lines.push(`**🔗 Reference links**\n${clip(value.reference_urls, 300)}`);
-  if (value.extra_details) lines.push(`**📝 ${ORDER_FIELD_LABELS.extra_details}**\n${clip(value.extra_details, 800)}`);
+  const extras = [];
+  if (references) extras.push(`**${ORDER_FIELD_LABELS.reference_urls}:** ${references}`);
+  if (value.reference_urls) extras.push(`**Reference links**\n${clip(value.reference_urls, 300)}`);
+  if (value.extra_details) extras.push(`**${ORDER_FIELD_LABELS.extra_details}**\n${clip(value.extra_details, 800)}`);
+  if (extras.length) sections.push(extras.join('\n\n'));
   const estimate = estimateOrder(value.size);
-  if (estimate) lines.push(`**💡 Price guide:** ${formatEstimate(estimate)} — the builder's quote sets the real price`);
-  return lines.join('\n');
+  if (estimate) {
+    sections.push(
+      `**Rough estimate:** ${formatEstimate(estimate)}\n` +
+        "-# Approximate, from the size alone. The builder's quote sets the real price and time."
+    );
+  }
+  return sections;
+}
+
+/** Add sections to a card with a divider between each. */
+function addSections(card, sections) {
+  sections.forEach((section, n) => {
+    if (n) card.addSeparatorComponents(divider());
+    card.addTextDisplayComponents(text(section));
+  });
+  return card;
 }
 
 /** Labels of the required answers asked in the order modal (the rest are in Version & deadline). */
@@ -395,10 +426,10 @@ export function getOrderSummaryPayload(ticket, fields) {
   const missing = missingOrderFields(fields);
   const card = new ContainerBuilder()
     .setAccentColor(brandColor(ticket.guild_id))
-    .addTextDisplayComponents(text(`## 📋 Order summary\n-# Ticket \`${ticket.id}\``))
-    .addSeparatorComponents(divider())
-    .addTextDisplayComponents(text(orderDetailsText(fields, hasReferenceFiles(fields) ? 'posted in this channel' : null)))
+    .addTextDisplayComponents(text(`## Order ${ticketLabel(ticket)}\n-# Your order summary — check it before you submit`))
     .addSeparatorComponents(divider());
+  addSections(card, orderDetailsSections(fields, hasReferenceFiles(fields) ? 'posted in this channel' : null));
+  card.addSeparatorComponents(divider());
 
   let status;
   if (submitted) status = '📨 **Submitted** — builders are looking at it. Their quotes will appear in this channel.';
@@ -465,12 +496,12 @@ export function orderBriefPayload(ticket, fields, { updated = false } = {}) {
     .setAccentColor(brandColor(ticket.guild_id))
     .addTextDisplayComponents(
       text(
-        (updated ? '## 📝 The client updated the order' : '## 🧱 New order — request for quote') +
-          `\nClient: <@${ticket.client_id}> · Ticket \`${ticket.id}\``
+        (updated ? `## Order ${ticketLabel(ticket)} — updated by the client` : `## New order ${ticketLabel(ticket)} — request for quote`) +
+          `\nClient: <@${ticket.client_id}>`
       )
     )
-    .addSeparatorComponents(divider())
-    .addTextDisplayComponents(text(orderDetailsText(fields, hasReferenceFiles(fields) ? 'files below' : null)));
+    .addSeparatorComponents(divider());
+  addSections(card, orderDetailsSections(fields, hasReferenceFiles(fields) ? 'files below' : null));
   if (updated) return v2(card);
   return v2(
     card
@@ -616,51 +647,87 @@ export function quoteDeclinedEmbed(proposal, freelancerName, reasonLabel) {
     .setTimestamp();
 }
 
-// --- Send Message / Reply relay (STEP 6) ---
+// --- Send Message: builder ↔ client conversation (STEP 6) ---
 
-/**
- * Build Send Message modal (freelancer). One paragraph. customId: send_message_modal:ticketId
- * @param {string} ticketId
- * @returns {ModalBuilder}
- */
+/** A conversation message modal (one paragraph). */
+function messageModal(customId, title, label, placeholder) {
+  return new ModalBuilder()
+    .setCustomId(customId)
+    .setTitle(title)
+    .addLabelComponents(
+      question(
+        label,
+        placeholder,
+        new TextInputBuilder().setCustomId('message').setStyle(TextInputStyle.Paragraph).setMaxLength(1000).setRequired(true)
+      )
+    );
+}
+
+/** Builder's first (or next) message to the client. customId: send_message_modal:ticketId */
 export function buildSendMessageModal(ticketId) {
-  const modal = new ModalBuilder()
-    .setCustomId(`${PREFIX.SEND_MESSAGE_MODAL}:${ticketId}`)
-    .setTitle('Send Message to Client');
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('relay_message')
-        .setLabel('Your message')
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder('Type your message...')
-        .setRequired(true)
-    )
+  return messageModal(
+    `${PREFIX.SEND_MESSAGE_MODAL}:${ticketId}`,
+    'Message the client',
+    'Your message',
+    'The client and the other builders of this order see it.'
   );
-  return modal;
 }
+
+/** Reply in a conversation (client, its builder or the team). customId: reply_relay_modal:conversationId */
+export function buildReplyRelayModal(conversationId) {
+  return messageModal(`${PREFIX.REPLY_RELAY_MODAL}:${conversationId}`, 'Reply', 'Your reply', 'Added to the same conversation card.');
+}
+
+/** Character budget for messages on one card — the rest of the card stays under the V2 limit. */
+const CONVERSATION_TEXT_BUDGET = 3000;
 
 /**
- * Relay message embed (thread-style). Author = sender name, description = message.
- * @param {string} authorName - e.g. freelancer display name or "Client"
- * @param {string} content
- * @returns {EmbedBuilder}
+ * One conversation as a card: every message in order, newest at the bottom; when it no longer
+ * fits, the oldest are hidden and the card suggests a thread. Two sides:
+ *   client — in the client's channel: Reply + Open private thread (the client only);
+ *   quote  — the copy in the quote channel: Reply (the builder who asked).
+ * @param {{ id: string, number?: number, client_id: string, guild_id?: string }} ticket
+ * @param {{ id: number, ticket_id: string, freelancer_id: string }} conversation
+ * @param {{ author_name: string, author_role: string, content: string, created_at: number }[]} messages
+ * @param {'client' | 'quote'} side
  */
-export function relayMessageEmbed(authorName, content) {
-  return new EmbedBuilder()
-    .setColor(EMBED_COLOR)
-    .setAuthor({ name: authorName })
-    .setDescription((content || '').slice(0, 4096))
-    .setTimestamp();
-}
+export function conversationCardPayload(ticket, conversation, messages, side) {
+  const builder = messages.find((m) => m.author_role === 'builder')?.author_name ?? 'A builder';
+  const lines = [];
+  let used = 0;
+  for (const m of [...messages].reverse()) {
+    const who = { client: ' (client)', team: ' (team)' }[m.author_role] ?? '';
+    const line = `**${m.author_name}${who}** · <t:${Math.floor(m.created_at / 1000)}:R>\n${m.content}`;
+    if (lines.length && used + line.length > CONVERSATION_TEXT_BUDGET) break;
+    lines.unshift(line);
+    used += line.length;
+  }
+  const hidden = messages.length - lines.length;
 
-/** Reply button under relay message. customId: reply_relay:ticketId */
-export function replyRelayButtonRow(ticketId) {
-  const button = new ButtonBuilder()
-    .setCustomId(`${PREFIX.REPLY_RELAY}:${ticketId}`)
-    .setLabel('Reply')
-    .setStyle(ButtonStyle.Secondary);
-  return new ActionRowBuilder().addComponents(button);
+  const header =
+    side === 'client'
+      ? `### 💬 ${builder} has a question\n-# Order ${ticketLabel(ticket)} · for <@${ticket.client_id}> · the builders of this order see this conversation too`
+      : `### 💬 ${builder} ↔ the client\n-# Order ${ticketLabel(ticket)} · visible to all builders of this order · only ${builder} and the client reply here`;
+  const card = new ContainerBuilder()
+    .setAccentColor(brandColor(ticket.guild_id))
+    .addTextDisplayComponents(text(header))
+    .addSeparatorComponents(divider())
+    .addTextDisplayComponents(text(lines.join('\n\n')));
+  if (hidden) {
+    card.addTextDisplayComponents(text(`-# ${hidden} earlier message${hidden === 1 ? '' : 's'} not shown — for a longer talk, open a private thread.`));
+  }
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIX.REPLY_RELAY}:${conversation.id}`).setLabel('Reply').setStyle(ButtonStyle.Primary)
+  );
+  if (side === 'client') {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX.CONTACT_FREELANCER}:${ticket.id}:${conversation.freelancer_id}`)
+        .setLabel('Open private thread')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+  return v2(card.addSeparatorComponents(divider()).addActionRowComponents(row));
 }
 
 /** "Close discussion" button in discussion thread. customId: close_discussion:ticketId:threadId */
@@ -670,27 +737,6 @@ export function closeDiscussionButtonRow(ticketId, threadId) {
     .setLabel('Close discussion')
     .setStyle(ButtonStyle.Danger);
   return new ActionRowBuilder().addComponents(button);
-}
-
-/**
- * Build Reply modal (client or freelancer). customId: reply_relay_modal:ticketId
- * @param {string} ticketId
- * @returns {ModalBuilder}
- */
-export function buildReplyRelayModal(ticketId) {
-  const modal = new ModalBuilder()
-    .setCustomId(`${PREFIX.REPLY_RELAY_MODAL}:${ticketId}`)
-    .setTitle('Reply');
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId('reply_text')
-        .setLabel('Your reply')
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true)
-    )
-  );
-  return modal;
 }
 
 // --- Mark Complete & Review (STEP 10) ---
@@ -831,7 +877,7 @@ export function orderCardEmbed(ticket, fields, { quotes, declined, agreedPrice }
   const valueOf = (name) => fields.find((f) => f.field_name === name)?.field_value;
   const embed = new EmbedBuilder()
     .setColor(brandColor(ticket.guild_id))
-    .setTitle(`Order · ${ticket.id}`)
+    .setTitle(`Order ${ticketLabel(ticket)}`)
     .setDescription(`**${CARD_STATUS_TEXT[ticket.status] ?? ticket.status}**\n\n${timeline}`)
     .setTimestamp();
   if (ticket.status === 'open') {
@@ -846,7 +892,7 @@ export function orderCardEmbed(ticket, fields, { quotes, declined, agreedPrice }
     embed.addFields({ name: 'Deadline', value: `${ticket.deadline} (<t:${unix}:R>)`, inline: true });
   }
   const estimate = estimateOrder(valueOf('size'));
-  if (estimate) embed.addFields({ name: 'Estimate', value: formatEstimate(estimate), inline: true });
+  if (estimate) embed.addFields({ name: 'Rough estimate', value: `${formatEstimate(estimate)} (approx.)`, inline: true });
   if (valueOf('budget')) embed.addFields({ name: 'Budget', value: budgetLabel(valueOf('budget')), inline: true });
   return embed;
 }

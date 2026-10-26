@@ -47,7 +47,8 @@ src/utils/panel.js           ensurePanel — панель без дублей
 src/utils/channels.js        archiveChannel / archiveQuoteChannel — в архив и только чтение
 src/utils/dates.js           parseDeadline — текст человека → 'YYYY-MM-DD'
 src/utils/pricing.js         parseSize, estimateOrder — формула цены сайта
-src/utils/                   channelNaming, rateLimit, logger, relayMessageStore
+src/utils/                   channelNaming, rateLimit, logger
+src/modules/conversations/   переписка билдер ↔ клиент (Send Message): репозиторий + карточки
 database/schema.sql          таблицы для свежей базы
 tests/                       node --test; helpers/fakes.js (фейки Discord), helpers/db.js (база в памяти)
 scripts/check-syntax.js      npm run check
@@ -103,7 +104,9 @@ handler(interaction, parts)
 
 | Таблица | Что | Ключевые поля |
 |---|---|---|
-| `tickets` | тикет любого типа | `type`, `guild_id`, `client_id`, `client_channel_id`, `freelancer_channel_id`, `assigned_freelancer_id`, `deadline`, `payment_confirmed`, `completed`, `relay_*_msg_id`, `quote_channel_due_at` |
+| `tickets` | тикет любого типа | `type`, `guild_id`, `client_id`, `client_channel_id`, `freelancer_channel_id`, `assigned_freelancer_id`, `deadline`, `payment_confirmed`, `completed`, `quote_channel_due_at`, `number` (номер на сервере: #1, #2…) |
+| `conversations` | переписка билдера с клиентом по заказу | `ticket_id`, `freelancer_id` (уникальная пара), `client_msg_id`, `quote_msg_id`, `thread_id` |
+| `conversation_messages` | её сообщения | `author_role`: builder / client / team, `content`, `created_at` |
 | `ticket_fields` | ответы формы | `ticket_id`, `field_name`, `field_value` (ключ-значение) |
 | `proposals` | квоты | `status`: pending / accepted / declined |
 | `reviews` | отзывы | `rating`, `comment` |
@@ -160,7 +163,8 @@ handler(interaction, parts)
 | Заявка: Accept / Reject (кнопка И модалка) | менеджер, один раз | `isManagerOrAdmin` + переход | 🟡 тест есть |
 | Форма заказа, правка | клиент | `ensureTicketClient` во всех 7 обработчиках | 🟡 тест есть |
 | Квота | фрилансер, пока нет исполнителя, одна ожидающая | `quoteRefusal` (кнопка И модалка) | 🟡 тест есть |
-| Сообщение relay | кто видит канал | — (канал видят только участники) | 🟡 |
+| Send Message (кнопка И модалка) | билдер (роль Freelancer) или менеджер, заказ `open`, не сам клиент | `startRefusal` | 🟡 тест есть |
+| Reply в переписке (кнопка И модалка) | клиент, этот билдер, менеджер | `speakerRole` | 🟡 тест есть |
 | Оплата, завершение, дедлайн (кнопка И модалка), `/invite` | менеджер | `isManagerOrAdmin`: Administrator или роль из `/setup` | 🟡 тест есть |
 | `/setup` | админ | `setDefaultMemberPermissions(Administrator)` | 🟢 |
 

@@ -8,7 +8,7 @@ import { handleSendMessageModal } from '../src/interactions/handlers/sendMessage
 import { handleReplyRelay } from '../src/interactions/handlers/replyRelay.js';
 import { handleReplyRelayModal } from '../src/interactions/handlers/replyRelayModal.js';
 import { handleContactFreelancer } from '../src/interactions/handlers/contactFreelancer.js';
-import { findConversation, listConversationMessages } from '../src/modules/conversations/ConversationRepository.js';
+import { listBuilderConversations, listConversationMessages } from '../src/modules/conversations/ConversationRepository.js';
 import { createTicket, getTicketById } from '../src/modules/tickets/TicketRepository.js';
 
 function setup(guildId) {
@@ -27,6 +27,8 @@ function setup(guildId) {
 }
 
 const as = (s, member, extra = {}) => fakeInteraction({ client: s.discord, member, guild: s.guild, ...extra });
+/** The builder's latest conversation (card) on this order. */
+const findConversation = (ticketId, builderId) => listBuilderConversations(ticketId, builderId).at(-1);
 const say = (text) => ({ fields: { message: text } });
 const send = (s, member, text) => handleSendMessageModal(as(s, member, say(text)), ['send_message_modal', s.ticketId]);
 
@@ -104,6 +106,19 @@ test('a manager or admin who is not this builder cannot reply either', async () 
   await handleReplyRelayModal(i, ['reply_relay_modal', String(conv.id)]);
   assert.match(answerText(i), /only the client and this builder/i);
   assert.equal(listConversationMessages(conv.id).length, 1);
+});
+
+test('every Send Message is a new card; Reply adds to the card it was pressed on', async () => {
+  const s = setup('g-conv-again');
+  await send(s, s.bob, 'Which roof style?');
+  await send(s, s.bob, 'And the terrain?');
+  assert.equal(s.clientChannel.sent.length, 2, 'two cards for the client');
+  assert.equal(s.quoteChannel.sent.length, 2, 'two copies for the builders');
+  const [first, second] = listBuilderConversations(s.ticketId, s.bob.id);
+  await handleReplyRelayModal(as(s, s.client, say('Flat')), ['reply_relay_modal', String(first.id)]);
+  assert.deepEqual(listConversationMessages(first.id).map((m) => m.content), ['Which roof style?', 'Flat']);
+  assert.deepEqual(listConversationMessages(second.id).map((m) => m.content), ['And the terrain?']);
+  assert.equal(s.clientChannel.sent.length, 2, 'the reply edited a card, no new message');
 });
 
 test('a Reply button from the old relay (ticket id in the customId) explains instead of crashing', async () => {

@@ -105,7 +105,7 @@ handler(interaction, parts)
 | Таблица | Что | Ключевые поля |
 |---|---|---|
 | `tickets` | тикет любого типа | `type`, `guild_id`, `client_id`, `client_channel_id`, `freelancer_channel_id`, `assigned_freelancer_id`, `deadline`, `payment_confirmed`, `completed`, `quote_channel_due_at`, `number` (номер на сервере: #1, #2…) |
-| `conversations` | переписка билдера с клиентом по заказу | `ticket_id`, `freelancer_id` (уникальная пара), `client_msg_id`, `quote_msg_id`, `thread_id` |
+| `conversations` | карточка переписки: одна на каждый Send Message | `ticket_id`, `freelancer_id`, `client_msg_id`, `quote_msg_id`, `thread_id` |
 | `conversation_messages` | её сообщения | `author_role`: builder / client / team, `content`, `created_at` |
 | `ticket_fields` | ответы формы | `ticket_id`, `field_name`, `field_value` (ключ-значение) |
 | `proposals` | квоты | `status`: pending / accepted / declined |

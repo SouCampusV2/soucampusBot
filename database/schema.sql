@@ -78,8 +78,9 @@ CREATE TABLE IF NOT EXISTS site_outbox (
   created_at INTEGER NOT NULL
 );
 
--- A builder's questions to the client before quoting (Send Message), one per order and builder.
--- Shown as ONE card in the client channel and its copy in the quote channel, edited on every message.
+-- A builder's question to the client before quoting: every Send Message starts one (owner's
+-- decision 2026-10-26). Shown as ONE card in the client channel and its copy in the quote
+-- channel; replies are added to the same card. thread_id is per builder (copied to all their rows).
 CREATE TABLE IF NOT EXISTS conversations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ticket_id TEXT NOT NULL,
@@ -88,7 +89,6 @@ CREATE TABLE IF NOT EXISTS conversations (
   quote_msg_id TEXT,               -- its copy in the quote channel
   thread_id TEXT,                  -- private thread (client + builder) once opened
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (ticket_id, freelancer_id),
   FOREIGN KEY (ticket_id) REFERENCES tickets(id)
 );
 
@@ -124,6 +124,9 @@ CREATE TABLE IF NOT EXISTS guild_config (
   terms_url TEXT,
   privacy_url TEXT,
   panel_banner_url TEXT,
+  category_staff TEXT,
+  channel_staff_announcements TEXT,
+  channel_staff_chat TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -21,9 +21,11 @@ export function fakeGuild({ id = 'guild-1', roles = [] } = {}) {
     _members: new Map(),
     createdChannels: [],
     channels: {
+      fetch: async (id) => guild.createdChannels.find((c) => c.id === id && !c.deleted) ?? null,
       create: async (options) => {
         const channel = fakeChannel(guild, { parentId: options.parent ?? null });
         channel.name = options.name;
+        channel.type = options.type;
         channel.permissionOverwritesOnCreate = options.permissionOverwrites;
         guild.createdChannels.push(channel);
         return channel;
@@ -85,6 +87,9 @@ export function fakeChannel(guild, { id = nextId(), parentId = null } = {}) {
       },
     },
     permissionOverwrites: {
+      async set(list) {
+        channel.permissionOverwritesOnCreate = list;
+      },
       async edit(target, perms) {
         channel.overwrites.push({ target: typeof target === 'string' ? target : target.id, perms });
       },

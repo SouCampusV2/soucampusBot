@@ -1,10 +1,9 @@
 /**
  * Send Message conversations (STEP 6): a builder asks the client something before quoting.
  *
- * One conversation per order and builder, shown as ONE card in the client channel (client +
- * managers) and a copy in the quote channel — all builders of the order see the questions and
- * answers and do not ask the same twice (owner's decision 2026-10-26). Every new message edits
- * both cards in place. An edit notifies nobody, so the other side gets a short DM with a link.
+ * Every Send Message starts a conversation: ONE card in the client channel (client + managers)
+ * and a copy in the quote channel — all builders of the order see the questions and answers and
+ * do not ask the same twice (owner's decision 2026-10-26). Replies edit both cards in place. An edit notifies nobody, so the other side gets a short DM with a link.
  * For a longer talk the client opens a private thread with that builder (contact_freelancer).
  */
 

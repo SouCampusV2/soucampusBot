@@ -16,6 +16,7 @@
  *   /setup links [terms] [privacy] [banner] — legal links and banner on the panel
  *   /setup log_channel     <channel>    — staff log: one line per ticket event
  *   /setup showcase_channel <channel> [new_link] — webhook the website posts portfolio works through
+ *   /setup staff_channels                — Staff category: #staff-announcements + #staff-chat (managers + builders)
  *   /setup view                          — show current configuration
  */
 
@@ -24,6 +25,7 @@ import { setSetting, getGuildConfig } from '../core/GuildConfig.js';
 import { upsertPanel } from '../utils/panel.js';
 import { ensureShowcaseWebhook } from '../modules/site/showcaseWebhook.js';
 import { parseReactionList } from '../modules/site/showcaseReactions.js';
+import { ensureStaffChannels, STAFF_ROLES_MISSING } from '../modules/staff/staffChannels.js';
 import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
 
@@ -77,6 +79,8 @@ export const setupCommandData = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s.setName('showcase_reactions').setDescription('Reactions the bot adds under every showcase post')
       .addStringOption((o) => o.setName('emojis').setDescription('Up to 10 emoji, space-separated (empty = none)').setRequired(false)))
+  .addSubcommand((s) =>
+    s.setName('staff_channels').setDescription('Create #staff-announcements and #staff-chat (managers + builders only)'))
   .addSubcommand((s) => s.setName('view').setDescription('Show current configuration'))
   .toJSON();
 
@@ -207,6 +211,22 @@ export async function handleSetupCommand(interaction) {
         });
         return;
       }
+      case 'staff_channels': {
+        // Category + two channels + intro posts: well over Discord's 3 seconds.
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const result = await ensureStaffChannels(interaction.guild, interaction.client.user.id);
+        if (!result) {
+          await interaction.editReply({ content: STAFF_ROLES_MISSING });
+          return;
+        }
+        const [announcements, chat] = result.channels;
+        await interaction.editReply({
+          content:
+            (result.created ? '✅ Staff channels created: ' : '✅ Staff channels already exist — permissions refreshed: ') +
+            `<#${announcements.id}> (managers post, builders read) and <#${chat.id}> (managers and builders).`,
+        });
+        return;
+      }
       case 'view': {
         const cfg = getGuildConfig(guildId);
         const line = (label, val, kind) => {
@@ -225,6 +245,8 @@ export async function handleSetupCommand(interaction) {
           line('Panel channel', cfg.channel_panel, 'channel'),
           line('Staff log channel', cfg.channel_log, 'channel'),
           line('Showcase channel', cfg.channel_showcase, 'channel'),
+          line('Staff announcements', cfg.channel_staff_announcements, 'channel'),
+          line('Staff chat', cfg.channel_staff_chat, 'channel'),
           line('Showcase reactions', cfg.showcase_reactions, 'text'),
           line('Terms link', cfg.terms_url, 'text'),
           line('Privacy link', cfg.privacy_url, 'text'),

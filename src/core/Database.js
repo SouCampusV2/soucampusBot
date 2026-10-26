@@ -88,7 +88,7 @@ function runMigrations(db) {
   ).run();
 
   const guildColumns = db.prepare('PRAGMA table_info(guild_config)').all().map((c) => c.name);
-  for (const column of ['terms_url', 'privacy_url', 'panel_banner_url', 'category_help', 'category_applications', 'showcase_webhook_id', 'showcase_reactions']) {
+  for (const column of ['terms_url', 'privacy_url', 'panel_banner_url', 'category_help', 'category_applications', 'showcase_webhook_id', 'showcase_reactions', 'category_staff', 'channel_staff_announcements', 'channel_staff_chat']) {
     if (!guildColumns.includes(column)) {
       db.exec(`ALTER TABLE guild_config ADD COLUMN ${column} TEXT`);
       logger.info('Migration: added column', { table: 'guild_config', column });
@@ -104,6 +104,7 @@ function runMigrations(db) {
   }
   normalizeDeadlines(db);
   backfillStatus(db);
+  dropConversationPairUnique(db);
 
   // Indexes created here (after column migrations) so they can reference new columns.
   db.exec(`
@@ -117,6 +118,7 @@ function runMigrations(db) {
     CREATE INDEX IF NOT EXISTS idx_reviews_ticket ON reviews(ticket_id);
     CREATE INDEX IF NOT EXISTS idx_tickets_guild_number ON tickets(guild_id, number);
     CREATE INDEX IF NOT EXISTS idx_conversation_messages ON conversation_messages(conversation_id);
+    CREATE INDEX IF NOT EXISTS idx_conversations_pair ON conversations(ticket_id, freelancer_id);
   `);
 }
 
@@ -140,6 +142,43 @@ export function normalizeDeadlines(db) {
     }
   })();
   logger.info('Migration: normalized ticket deadlines to dates', { tickets: rows.length });
+}
+
+/**
+ * conversations was created (2026-10-26) with UNIQUE (ticket_id, freelancer_id): one card per
+ * builder. Now every Send Message is its own card — SQLite cannot drop a constraint, so the
+ * table is rebuilt once, rows kept as they are.
+ */
+function dropConversationPairUnique(db) {
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'conversations'").get()?.sql ?? '';
+  if (!/UNIQUE/i.test(sql)) return;
+  // conversation_messages points at conversations: with foreign keys on, DROP TABLE would fail.
+  // SQLite's own recipe: keys off for the rebuild (outside the transaction), then check, then on.
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE conversations_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ticket_id TEXT NOT NULL,
+          freelancer_id TEXT NOT NULL,
+          client_msg_id TEXT,
+          quote_msg_id TEXT,
+          thread_id TEXT,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (ticket_id) REFERENCES tickets(id)
+        );
+        INSERT INTO conversations_new SELECT id, ticket_id, freelancer_id, client_msg_id, quote_msg_id, thread_id, created_at FROM conversations;
+        DROP TABLE conversations;
+        ALTER TABLE conversations_new RENAME TO conversations;
+      `);
+      const broken = db.pragma('foreign_key_check');
+      if (broken.length) throw new Error(`conversations rebuild broke ${broken.length} references`);
+    })();
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
+  logger.info('Migration: conversations — one card per Send Message (pair UNIQUE dropped)');
 }
 
 /**

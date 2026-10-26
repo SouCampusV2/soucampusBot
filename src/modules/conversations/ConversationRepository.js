@@ -1,24 +1,32 @@
 /**
- * Builder ↔ client conversations before a quote (Send Message): one per order and builder,
- * with its messages. The cards that show them are drawn from these rows (Conversation.js).
+ * Builder ↔ client conversations before a quote: every Send Message starts one (one card),
+ * replies are its messages. The cards are drawn from these rows (Conversation.js). The private
+ * thread is per builder: its id is kept on all of that builder's rows for the order.
  */
 
 import { get, query, run } from '../../core/Database.js';
 
 /**
- * The conversation of this builder on this order, created on first use. Synchronous: a double
- * submit cannot create two (UNIQUE ticket_id + freelancer_id backs it up).
+ * A new conversation (a new card) for this builder's Send Message.
  * @param {string} ticketId
  * @param {string} freelancerId
  */
-export function getOrCreateConversation(ticketId, freelancerId) {
-  run('INSERT OR IGNORE INTO conversations (ticket_id, freelancer_id) VALUES (?, ?)', [ticketId, freelancerId]);
-  return findConversation(ticketId, freelancerId);
+export function createConversation(ticketId, freelancerId) {
+  const { lastInsertRowid } = run('INSERT INTO conversations (ticket_id, freelancer_id) VALUES (?, ?)', [ticketId, freelancerId]);
+  return getConversation(lastInsertRowid);
 }
 
-/** @returns {object | undefined} */
-export function findConversation(ticketId, freelancerId) {
-  return get('SELECT * FROM conversations WHERE ticket_id = ? AND freelancer_id = ?', [ticketId, freelancerId]);
+/** This builder's conversations on this order, oldest first. */
+export function listBuilderConversations(ticketId, freelancerId) {
+  return query('SELECT * FROM conversations WHERE ticket_id = ? AND freelancer_id = ? ORDER BY id', [ticketId, freelancerId]);
+}
+
+/** The private thread of this builder on this order, if one was opened. */
+export function findBuilderThreadId(ticketId, freelancerId) {
+  return get(
+    'SELECT thread_id FROM conversations WHERE ticket_id = ? AND freelancer_id = ? AND thread_id IS NOT NULL LIMIT 1',
+    [ticketId, freelancerId]
+  )?.thread_id;
 }
 
 /** @returns {object | undefined} */
@@ -47,6 +55,17 @@ export function setConversationCards(conversationId, { clientMsgId, quoteMsgId }
   run('UPDATE conversations SET client_msg_id = ?, quote_msg_id = ? WHERE id = ?', [clientMsgId, quoteMsgId, conversationId]);
 }
 
-export function setConversationThread(conversationId, threadId) {
-  run('UPDATE conversations SET thread_id = ? WHERE id = ?', [threadId, conversationId]);
+/**
+ * Remember the builder's private thread on all their rows; a builder who never wrote (thread
+ * opened from a quote's Contact freelancer) gets a row without a card just to hold it.
+ */
+export function rememberBuilderThread(ticketId, freelancerId, threadId) {
+  const { changes } = run('UPDATE conversations SET thread_id = ? WHERE ticket_id = ? AND freelancer_id = ?', [
+    threadId,
+    ticketId,
+    freelancerId,
+  ]);
+  if (!changes) {
+    run('INSERT INTO conversations (ticket_id, freelancer_id, thread_id) VALUES (?, ?, ?)', [ticketId, freelancerId, threadId]);
+  }
 }

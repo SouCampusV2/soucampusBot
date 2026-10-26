@@ -1,12 +1,12 @@
 /**
- * Handler for send_message_modal:ticketId — the builder's message goes into their conversation
- * with the client: one card in the client channel and its copy in the quote channel, both
- * redrawn with every message (STEP 6, modules/conversations/Conversation.js).
+ * Handler for send_message_modal:ticketId — every Send Message is a new conversation card: one
+ * in the client channel and its copy in the quote channel; Reply adds to that card (STEP 6,
+ * modules/conversations/Conversation.js).
  */
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
-import { getOrCreateConversation } from '../../modules/conversations/ConversationRepository.js';
+import { createConversation } from '../../modules/conversations/ConversationRepository.js';
 import { startRefusal, postConversationMessage } from '../../modules/conversations/Conversation.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
@@ -24,7 +24,7 @@ export async function handleSendMessageModal(interaction, parts) {
     await interaction.reply({ content: 'Message cannot be empty.', flags: MessageFlags.Ephemeral });
     return;
   }
-  const conversation = getOrCreateConversation(ticket.id, interaction.user.id);
+  const conversation = createConversation(ticket.id, interaction.user.id);
   try {
     // Two cards to post or edit + a DM: well over Discord's 3 seconds.
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -34,7 +34,7 @@ export async function handleSendMessageModal(interaction, parts) {
       authorRole: 'builder',
       content,
     });
-    await interaction.editReply({ content: '✅ Sent. The client sees it in their ticket; their answer appears on the same card here.' });
+    await interaction.editReply({ content: '✅ Sent. The client sees it in their ticket; their answer appears on this card in the quote channel.' });
     logger.info('Conversation message from builder', { ticketId: ticket.id, conversationId: conversation.id });
   } catch (err) {
     logger.error('send_message_modal failed', { ticketId: ticket.id, error: err.message });

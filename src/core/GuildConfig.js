@@ -32,6 +32,9 @@ export const SETTINGS = {
   terms_url: { column: 'terms_url', env: 'TERMS_URL' },
   privacy_url: { column: 'privacy_url', env: 'PRIVACY_URL' },
   panel_banner_url: { column: 'panel_banner_url', env: 'PANEL_BANNER_URL' },
+  category_staff: { column: 'category_staff', env: null },
+  channel_staff_announcements: { column: 'channel_staff_announcements', env: null },
+  channel_staff_chat: { column: 'channel_staff_chat', env: null },
 };
 
 /** In-memory cache: guildId -> config row. Invalidated on write. */

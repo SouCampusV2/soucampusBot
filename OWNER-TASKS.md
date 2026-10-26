@@ -53,9 +53,15 @@
    - `/setup color #F97316` — оранжевый сайта для всех карточек бота;
    - `/setup rules channel:#🌸rules image:https://…` — карточка правил
      (старое сообщение-эмбед в #rules удалить руками);
-   - `/setup announcements_channel #🌸announcements` → ссылку из ответа в
-     Vercel как `DISCORD_ANNOUNCE_WEBHOOK_URL` → Redeploy. Дальше анонсы —
-     с сайта, `/admin/announce` → «Discord only» или «Site + Discord».
+   - `/setup site_channel` четыре раза — kind Portfolio → #🌸portfolio,
+     Premade builds → #🌸premade-builds, Free builds → #🌸free-builds,
+     Announcements → #🌸announcements. Каждая ссылка из ответа → Vercel
+     (`DISCORD_SHOWCASE_/PREMADE_/FREE_/ANNOUNCE_WEBHOOK_URL`) → Redeploy.
+     Кнопки на сайте под премейд и фри — после сессии по сайту
+     (`SITE-PROMPT.md`, дополнение 27.10 вечер);
+   - вебхуки Captain Porto / Primo / Freebo удалить (их ссылки были в чате);
+   - картинки закреплённых постов — ссылки Claude, или самому по
+     `docs/CHANNEL-POSTS.md`.
 10. ⚠️ **Не запускать бота локально (`npm start`)**, пока он работает на VPS:
    один токен — один процесс, иначе каждое нажатие выполнится дважды
    (`docs/DEPLOY.md`).

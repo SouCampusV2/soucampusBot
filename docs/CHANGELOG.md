@@ -22,6 +22,20 @@
   вебхук витрины (тест).
 - Четыре колонки `guild_config`: `channel_announcements`, `channel_rules`,
   `rules_message_id`, `rules_image_url` — в `schema.sql` и `runMigrations`.
+- **`/setup site_channel kind:… channel:#…`** — ссылка-вебхук для любого
+  канала, куда пишет сайт: портфолио, премейд, фри билдс, анонсы (своя у
+  каждого, `SITE_CHANNELS` в `showcaseWebhook.js`). `showcase_channel` и
+  `announcements_channel` — те же, остались как синонимы. Каналы объявлений
+  (тип 5) теперь принимаются: #portfolio именно такой. Реакции бота — и под
+  премейдом/фри; под анонсами нет. 6 колонок `guild_config`.
+- **Закреплённые посты** #portfolio / #premade-builds / #free-builds отправлены
+  **ботом** через REST (сначала ушли вебхуком с подписью «BoCampus» — старое
+  имя; владелец попросил BotCampus). Тексты и ID — `docs/channel-posts.json`,
+  правка — `scripts/edit-channel-posts.sh` (`docs/CHANNEL-POSTS.md`). В
+  портфолио скидка уточнена: 10% на **первый** заказ через тикет; в премейд и
+  фри — просьба об отзыве на сайте.
+- В `IDEAS.md` — ИИ пишет посты в админке сайта; задание для сайта (кнопки на
+  4 канала, отзывы на бесплатное от любого) — `SITE-PROMPT.md`.
 - **Мёрж `dev` → `master`** (перемотка, 42 коммита) по решению владельца,
   сервер переключён на `master`. Прогон `TEMP.md` ещё не закончен — правки
   дальше идут в `dev` и мёржатся так же.

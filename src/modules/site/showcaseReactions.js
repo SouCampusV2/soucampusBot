@@ -1,14 +1,16 @@
 /**
- * Showcase reactions: the website posts portfolio works through a webhook, and a webhook
- * cannot react. So the bot does it — every new post of OUR showcase webhook in the showcase
- * channel gets the configured reactions (/setup showcase_reactions), like other studios do.
+ * Showcase reactions: the website posts builds (portfolio, premade, free) through webhooks, and a
+ * webhook cannot react. So the bot does it — every new post of OUR webhook in its channel gets
+ * the configured reactions (/setup showcase_reactions), like other studios do.
  *
  * Needs the GuildMessages intent (non-privileged) to see the new message. Only messages whose
- * webhookId is the one /setup showcase_channel created are touched — not people, not other bots.
+ * webhookId is one /setup site_channel created (in its own channel) are touched — not people,
+ * not other bots, not announcements.
  */
 
 import { getSetting } from '../../core/GuildConfig.js';
 import { logger } from '../../utils/logger.js';
+import { SITE_CHANNELS } from './showcaseWebhook.js';
 
 const MAX_REACTIONS = 10;
 /** Server emoji <:name:id> / animated <a:name:id>. */
@@ -34,8 +36,13 @@ export function parseReactionList(text) {
  */
 export async function reactToShowcasePost(message) {
   if (!message.guildId || !message.webhookId) return;
-  if (message.channelId !== getSetting(message.guildId, 'channel_showcase')) return;
-  if (message.webhookId !== getSetting(message.guildId, 'showcase_webhook_id')) return;
+  const ours = Object.values(SITE_CHANNELS).some(
+    (meta) =>
+      meta.reactions &&
+      message.channelId === getSetting(message.guildId, meta.channelKey) &&
+      message.webhookId === getSetting(message.guildId, meta.webhookKey)
+  );
+  if (!ours) return;
   const emojis = parseReactionList(getSetting(message.guildId, 'showcase_reactions') ?? '') ?? [];
   for (const emoji of emojis) {
     await message.react(emoji).catch((err) => logger.warn('Showcase reaction failed', { emoji, error: err.message }));

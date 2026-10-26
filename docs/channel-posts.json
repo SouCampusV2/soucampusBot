@@ -1,0 +1,50 @@
+{
+  "_about": "Pinned intro posts sent by the bot (BotCampus). Edit: change the embed here, then PATCH /channels/{channel_id}/messages/{message_id} with the bot token on the VPS (see docs/CHANNEL-POSTS.md).",
+  "posts": {
+    "portfolio": {
+      "channel_id": "1564220382951505940",
+      "message_id": "1564342720837980333",
+      "embed": {
+        "title": "🌸 Portfolio",
+        "description": "Welcome to the **SouCampus Builds portfolio**, a showcase of projects we've built for servers, creators and communities.\n\n## 🏯 What you'll find here\n> 🏰 **Spawns & lobbies:** the first thing your players see\n> 🌋 **Maps & landscapes:** terrain, biomes, custom worlds\n> 🏛️ **Structures:** temples, castles, cities, statues\n> 🎨 **Detailed pieces:** organics, interiors, decorations\n\nEvery build here was made **to order**: from a client's idea to a finished world.\n\n## ✨ Like what you see?\nGet something like this made for your server: open a ticket in <#1232357370630508675> and click **Order**.\n💸 Your **first order** placed through a ticket gets **10% off**.\n\n🌐 Full gallery coming soon at **[soucampus.online](https://soucampus.online)**",
+        "color": 16347926,
+        "image": {
+          "url": "https://placehold.co/1200x500/F97316/FFFFFF/png?text=Portfolio"
+        },
+        "footer": {
+          "text": "SouCampus Builds · Portfolio"
+        }
+      }
+    },
+    "premade": {
+      "channel_id": "1564335748520345731",
+      "message_id": "1564342721538302096",
+      "embed": {
+        "title": "🌿 Premade Builds",
+        "description": "**Ready-made builds, available right now.** No waiting, no brief: pick one, buy it, and drop it into your world.\n\n## 📦 How it works\n> **1.** Browse the builds posted in this channel\n> **2.** Found one you like? Open a ticket in <#1232357370630508675>\n> **3.** Tell us which build you want (a link to the post is enough)\n> **4.** Pay and get the schematic / world download ✨\n\n## 🔍 Every post includes\n> 📐 Size  ·  🧱 Minecraft version  ·  💶 Price\n\n## 🛠️ Want it changed?\nNeed a different size, colours or style? We can **customize any premade build**. Just say so in your ticket.\n\n## ⭐ Bought one?\nLeave a review on its page at **[soucampus.online](https://soucampus.online/marketplace)**. We'd love to hear how it works on your server!\n\n*Premade builds are sold for use on your server. Reselling or redistributing them isn't allowed.*",
+        "color": 8702998,
+        "image": {
+          "url": "https://placehold.co/1200x500/84CC16/FFFFFF/png?text=Premade+Builds"
+        },
+        "footer": {
+          "text": "SouCampus Builds · Premade"
+        }
+      }
+    },
+    "free": {
+      "channel_id": "1564335920310657105",
+      "message_id": "1564342722884673638",
+      "embed": {
+        "title": "💎 Free Builds",
+        "description": "**Free builds from SouCampus, for everyone.** 🎁\n\nFrom time to time we share smaller builds completely free: a thank-you to the community and a taste of what we do.\n\n## 📥 How to get them\n> Just download from the post. No ticket, no payment needed.\n\n## 📜 Rules for free builds\n> ✅ Use them on your own server or in your world\n> ✅ Edit and adapt them however you like\n> ❌ Don't resell them or claim them as your own\n> 💬 Credit **SouCampus Builds** if you show them off. We'd love to see it!\n\n## 🔔 Don't miss a drop\nFree builds are posted here first. Keep notifications on for this channel 👀\n\n## ⭐ Tell us what you think\nTried a free build? Leave a review on its page at **[soucampus.online](https://soucampus.online/marketplace)**. It really helps us! 💙\n\nWant something bigger and made just for you? Open a ticket in <#1232357370630508675>.",
+        "color": 3900150,
+        "image": {
+          "url": "https://placehold.co/1200x500/3B82F6/FFFFFF/png?text=Free+Builds"
+        },
+        "footer": {
+          "text": "SouCampus Builds · Free Builds"
+        }
+      }
+    }
+  }
+}

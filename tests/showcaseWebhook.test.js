@@ -79,3 +79,23 @@ test('webhooks made by someone else in that channel are left alone', async () =>
   await runSetup(guild, channel, { newLink: true });
   assert.ok(channel.hooks.has('other'));
 });
+
+test('site_channel kind:premade — its own webhook and env name; the showcase link keeps working', async () => {
+  const guild = fakeGuild({ id: 'g-hook-premade' });
+  const channel = channelWithWebhooks(guild);
+  await runSetup(guild, channel);
+  const i = fakeInteraction({ client: fakeClient([channel]), member: fakeMember(guild, { admin: true }), guild });
+  i.isChatInputCommand = () => true;
+  i.commandName = 'setup';
+  i.options = {
+    getSubcommand: () => 'site_channel',
+    getString: (k) => (k === 'kind' ? 'premade' : null),
+    getChannel: () => channel,
+    getBoolean: () => true,
+  };
+  await handleSetupCommand(i);
+  assert.match(finalText(i), /DISCORD_PREMADE_WEBHOOK_URL/);
+  assert.deepEqual([...channel.hooks.values()].map((h) => h.name).sort(), ['SouCampus Premade', 'SouCampus Showcase']);
+  assert.equal(getSetting(guild.id, 'channel_premade'), channel.id);
+  assert.equal(getSetting(guild.id, 'premade_webhook_id'), [...channel.hooks.values()].find((h) => h.name === 'SouCampus Premade').id);
+});

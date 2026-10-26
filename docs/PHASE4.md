@@ -36,6 +36,12 @@
   больших картинок, своё имя и аватар автора. Реакции ставит **бот**:
   `/setup showcase_reactions 🔥 👀 …` — только под постами своего вебхука.
 
+**Все каналы сайта** (27.10, вечер): `/setup site_channel kind:… channel:#…` —
+портфолио, премейд, фри билдс, анонсы; у каждого свой вебхук и своя переменная
+(`DISCORD_SHOWCASE_/PREMADE_/FREE_/ANNOUNCE_WEBHOOK_URL`). Реакции бот ставит
+под постами портфолио, премейда и фри; под анонсами — нет. Каналы могут быть
+каналами объявлений (тип 5).
+
 **Анонсы** (27.10) — тот же путь: `/setup announcements_channel #канал` →
 вебхук «SouCampus Announcements» → ссылка в Vercel как
 `DISCORD_ANNOUNCE_WEBHOOK_URL`. Пишет сайт из `/admin/announce` («Discord

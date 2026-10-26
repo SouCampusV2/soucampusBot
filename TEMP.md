@@ -142,3 +142,4 @@ Freelancer (иначе он не сможет её выдавать), **два �
 - [ ] Аккаунт Б: `/rules` → правила видны только ему; `/setup` не видно.
 - [ ] `/setup announcements_channel #announcements` → скрытая ссылка, видишь только ты. В Vercel `DISCORD_ANNOUNCE_WEBHOOK_URL` → Redeploy → `/admin/announce` → «Discord only» → сообщение в канале подписано как бот.
 - [ ] `/setup announcements_channel … new_link:true` → старая ссылка не работает, вебхук витрины («SouCampus Showcase») на месте.
+- [ ] `/setup site_channel kind:Premade builds channel:#🌸premade-builds` → в выборе канала есть каналы объявлений; ссылка с **DISCORD_PREMADE_WEBHOOK_URL**; в настройках канала → Вебхуки — «SouCampus Premade». `/setup view` показывает Premade channel.

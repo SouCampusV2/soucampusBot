@@ -85,3 +85,24 @@ test('/setup showcase_channel remembers its webhook id; /setup showcase_reaction
   assert.match(finalText(await run('showcase_reactions', { emojis: '🔥 💙' })), /✅/);
   assert.equal(getSetting(guild.id, 'showcase_reactions'), '🔥 💙');
 });
+
+test('premade and free posts get reactions too; announcements do not', async () => {
+  const guildId = 'g-react-kinds';
+  setSetting(guildId, 'channel_premade', 'pre-ch');
+  setSetting(guildId, 'premade_webhook_id', 'pre-hook');
+  setSetting(guildId, 'channel_announcements', 'ann-ch');
+  setSetting(guildId, 'announce_webhook_id', 'ann-hook');
+  setSetting(guildId, 'showcase_reactions', '🔥');
+
+  const premade = showcaseMessage(guildId, 'pre-ch', 'pre-hook');
+  await reactToShowcasePost(premade.message);
+  assert.deepEqual(premade.reacted, ['🔥']);
+
+  const announcement = showcaseMessage(guildId, 'ann-ch', 'ann-hook');
+  await reactToShowcasePost(announcement.message);
+  assert.deepEqual(announcement.reacted, []);
+
+  const wrongChannel = showcaseMessage(guildId, 'ann-ch', 'pre-hook');
+  await reactToShowcasePost(wrongChannel.message);
+  assert.deepEqual(wrongChannel.reacted, [], 'a webhook counts only in its own channel');
+});

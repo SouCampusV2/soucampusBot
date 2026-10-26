@@ -15,8 +15,9 @@
  *   /setup panel           [channel]    — post the ticket panel, or update ours in place
  *   /setup links [terms] [privacy] [banner] — legal links and banner on the panel
  *   /setup log_channel     <channel>    — staff log: one line per ticket event
- *   /setup showcase_channel <channel> [new_link] — webhook the website posts portfolio works through
- *   /setup announcements_channel <channel> [new_link] — webhook the website posts announcements through
+ *   /setup site_channel <kind> <channel> [new_link] — webhook the website posts through:
+ *                          portfolio / premade / free builds / announcements (one link per kind)
+ *   /setup showcase_channel, announcements_channel — the same for one kind (older names, kept)
  *   /setup rules           [channel] [image] — post the rules card, or update ours in place
  *   /setup staff_channels                — Staff category: #staff-announcements + #staff-chat (managers + builders)
  *   /setup view                          — show current configuration
@@ -25,7 +26,7 @@
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { setSetting, getSetting, getGuildConfig } from '../core/GuildConfig.js';
 import { upsertPanel } from '../utils/panel.js';
-import { ensureShowcaseWebhook, ensureAnnounceWebhook } from '../modules/site/showcaseWebhook.js';
+import { SITE_CHANNELS, connectSiteChannel } from '../modules/site/showcaseWebhook.js';
 import { upsertRules } from '../utils/rules.js';
 import { parseReactionList } from '../modules/site/showcaseReactions.js';
 import { ensureStaffChannels, STAFF_ROLES_MISSING } from '../modules/staff/staffChannels.js';
@@ -71,11 +72,22 @@ export const setupCommandData = new SlashCommandBuilder()
     s.setName('log_channel').setDescription('Staff log channel: one line per ticket event')
       .addChannelOption((o) => o.setName('channel').setDescription('Text channel (staff only)').addChannelTypes(ChannelType.GuildText).setRequired(true)))
   .addSubcommand((s) =>
-    s.setName('showcase_channel').setDescription('Channel the website posts portfolio works to (gives a webhook link)')
-      .addChannelOption((o) => o.setName('channel').setDescription('Text channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
+    s.setName('site_channel').setDescription('Channel the website posts to (gives a webhook link)')
+      .addStringOption((o) =>
+        o.setName('kind').setDescription('What the website posts there').setRequired(true).addChoices(
+          { name: 'Portfolio', value: 'portfolio' },
+          { name: 'Premade builds', value: 'premade' },
+          { name: 'Free builds', value: 'free' },
+          { name: 'Announcements', value: 'announcements' }
+        ))
+      .addChannelOption((o) => o.setName('channel').setDescription('Text or announcement channel').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true))
       .addBooleanOption((o) => o.setName('new_link').setDescription('Issue a new link; the old one stops working')))
   .addSubcommand((s) =>
-    s.setName('announcements_channel').setDescription('Channel the website posts announcements to (gives a webhook link)')
+    s.setName('showcase_channel').setDescription('Channel the website posts portfolio works to (same as site_channel kind:Portfolio)')
+      .addChannelOption((o) => o.setName('channel').setDescription('Text or announcement channel').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true))
+      .addBooleanOption((o) => o.setName('new_link').setDescription('Issue a new link; the old one stops working')))
+  .addSubcommand((s) =>
+    s.setName('announcements_channel').setDescription('Channel the website posts announcements to (same as site_channel kind:Announcements)')
       .addChannelOption((o) => o.setName('channel').setDescription('Text or announcement channel').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true))
       .addBooleanOption((o) => o.setName('new_link').setDescription('Issue a new link; the old one stops working')))
   .addSubcommand((s) =>
@@ -88,7 +100,7 @@ export const setupCommandData = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('privacy').setDescription('Privacy page (https://…)'))
       .addStringOption((o) => o.setName('banner').setDescription('Banner image on top of the panel (https://…)')))
   .addSubcommand((s) =>
-    s.setName('showcase_reactions').setDescription('Reactions the bot adds under every showcase post')
+    s.setName('showcase_reactions').setDescription('Reactions the bot adds under website posts (portfolio, premade, free)')
       .addStringOption((o) => o.setName('emojis').setDescription('Up to 10 emoji, space-separated (empty = none)').setRequired(false)))
   .addSubcommand((s) =>
     s.setName('staff_channels').setDescription('Create #staff-announcements and #staff-chat (managers + builders only)'))
@@ -131,34 +143,20 @@ export async function handleSetupCommand(interaction) {
         await interaction.reply({ content: `✅ Reviews will be posted in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
         return;
       }
-      case 'showcase_channel': {
+      case 'site_channel':
+      case 'showcase_channel':
+      case 'announcements_channel': {
+        const kind = { showcase_channel: 'portfolio', announcements_channel: 'announcements' }[sub] ?? interaction.options.getString('kind');
+        const meta = SITE_CHANNELS[kind];
         const channel = interaction.options.getChannel('channel');
         const rotate = interaction.options.getBoolean('new_link') ?? false;
         // Fetching/creating webhooks is a few API calls — answer within Discord's 3 seconds first.
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const webhook = await ensureShowcaseWebhook(channel, interaction.client.user.id, { rotate });
-        setSetting(guildId, 'channel_showcase', channel.id);
-        // Remembered so the bot reacts only to posts of THIS webhook (showcaseReactions.js).
-        setSetting(guildId, 'showcase_webhook_id', webhook.id);
+        const webhook = await connectSiteChannel(kind, channel, interaction.client.user.id, { rotate });
         await interaction.editReply({
           content:
-            `✅ The website will post portfolio works in <#${channel.id}>.\n` +
-            'Put this link into the site’s environment as **DISCORD_SHOWCASE_WEBHOOK_URL** (Vercel → Settings → Environment Variables):\n' +
-            `||${webhook.url}||\n` +
-            '⚠️ Treat it like a password: anyone with it can post in that channel. Leaked? Run this again with `new_link: true`.',
-        });
-        return;
-      }
-      case 'announcements_channel': {
-        const channel = interaction.options.getChannel('channel');
-        const rotate = interaction.options.getBoolean('new_link') ?? false;
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const webhook = await ensureAnnounceWebhook(channel, interaction.client.user.id, { rotate });
-        setSetting(guildId, 'channel_announcements', channel.id);
-        await interaction.editReply({
-          content:
-            `✅ The website will post announcements in <#${channel.id}>.\n` +
-            'Put this link into the site’s environment as **DISCORD_ANNOUNCE_WEBHOOK_URL** (Vercel → Settings → Environment Variables):\n' +
+            `✅ The website will post ${meta.label} in <#${channel.id}>.\n` +
+            `Put this link into the site’s environment as **${meta.env}** (Vercel → Settings → Environment Variables):\n` +
             `||${webhook.url}||\n` +
             '⚠️ Treat it like a password: anyone with it can post in that channel. Leaked? Run this again with `new_link: true`.',
         });
@@ -292,6 +290,8 @@ export async function handleSetupCommand(interaction) {
           line('Staff log channel', cfg.channel_log, 'channel'),
           line('Showcase channel', cfg.channel_showcase, 'channel'),
           line('Announcements channel', cfg.channel_announcements, 'channel'),
+          line('Premade channel', cfg.channel_premade, 'channel'),
+          line('Free builds channel', cfg.channel_free, 'channel'),
           line('Rules channel', cfg.channel_rules, 'channel'),
           line('Rules picture', cfg.rules_image_url, 'text'),
           line('Staff announcements', cfg.channel_staff_announcements, 'channel'),

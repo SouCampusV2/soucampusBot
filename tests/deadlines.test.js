@@ -4,7 +4,6 @@ import Database from 'better-sqlite3';
 import { seedOrder, setSetting } from './helpers/db.js';
 import { fakeGuild, fakeMember, fakeRole, fakeChannel, fakeClient, fakeInteraction, answerText } from './helpers/fakes.js';
 import { handleExtendDeadlineModal } from '../src/interactions/handlers/extendDeadlineModal.js';
-import { handleOrderForm1Modal } from '../src/modules/tickets/flows/OrderFlow.js';
 import { sendDeadlineReminders } from '../src/jobs/deadlineJob.js';
 import { getTicketById, updateTicketDeadline } from '../src/modules/tickets/TicketRepository.js';
 import { normalizeDeadlines } from '../src/core/Database.js';
@@ -51,17 +50,6 @@ test('unreadable or past dates are refused for managers', async () => {
   assert.match(answerText(await extend(s, s.manager, 'soon-ish')), /could not read/i);
   assert.match(answerText(await extend(s, s.manager, '2001-01-01')), /past/i);
   assert.equal(getTicketById(s.ticketId).deadline, null);
-});
-
-test('the client form saves anyway but warns when the deadline is not a date', async () => {
-  const s = setup('g-dl-form', { inForm: true });
-  const i = fakeInteraction({
-    client: s.discord, member: s.client, guild: s.guild,
-    fields: { field_need: 'Castle', field_deadline: 'asap please' },
-  });
-  await handleOrderForm1Modal(i, ['order_form_1', s.ticketId]);
-  assert.match(answerText(i), /Part 1 saved/);
-  assert.match(answerText(i), /could not read/i);
 });
 
 test('reminders go to orders due today or tomorrow — not later, not closed', async () => {

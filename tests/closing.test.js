@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { seedOrder, setSetting } from './helpers/db.js';
-import { fakeGuild, fakeMember, fakeRole, fakeChannel, fakeClient, fakeInteraction, answerKind } from './helpers/fakes.js';
+import { MessageFlags, MessageFlagsBitField } from 'discord.js';
+import { fakeGuild, fakeMember, fakeRole, fakeChannel, fakeClient, fakeInteraction, answerKind, customIds, payloadText } from './helpers/fakes.js';
 import { handleCloseTicket } from '../src/interactions/handlers/closeTicket.js';
 import { handleKeepChannel } from '../src/interactions/handlers/keepChannel.js';
 import { sweepDueChannels } from '../src/jobs/cleanupJob.js';
@@ -43,6 +44,17 @@ test('a stranger cannot close someone else\'s ticket', async () => {
   const i = await press(s, s.stranger, handleCloseTicket, 'close_ticket');
   assert.equal(answerKind(i), 'reply');
   assert.equal(getTicketById(s.ticketId).status, 'open');
+});
+
+test('Close on the welcome card (V2) redraws the card closed instead of emptying it', async () => {
+  const s = setup('g-close-card');
+  const message = { flags: new MessageFlagsBitField(MessageFlags.IsComponentsV2) };
+  const i = fakeInteraction({ client: s.discord, member: s.client, guild: s.guild, message });
+  await handleCloseTicket(i, ['close_ticket', s.ticketId]);
+  const card = i.calls[0].payload;
+  assert.equal(card.flags, MessageFlags.IsComponentsV2, 'still a card: an empty V2 message is rejected by Discord');
+  assert.deepEqual(customIds(card), [], 'no buttons left');
+  assert.match(payloadText(card), /Closed/);
 });
 
 test('the client can cancel an order that has no freelancer yet', async () => {

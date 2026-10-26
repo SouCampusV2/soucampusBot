@@ -51,7 +51,9 @@ export async function handleSubmitQuoteModal(interaction, parts) {
     const clientChannel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
     if (clientChannel) {
       await clientChannel.send({
-        content: 'New quote received (only order creator can use buttons):',
+        content:
+          '💰 **New quote!** Compare it with the others — **Accept** it, ask first with **Contact freelancer**, ' +
+          'or decline with a reason (the builder sees why).',
         embeds: [embed],
         components: clientComponents,
       });

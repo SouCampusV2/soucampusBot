@@ -4,36 +4,22 @@ import { seedOrder } from './helpers/db.js';
 import { fakeGuild, fakeMember, fakeChannel, fakeClient, fakeInteraction, answerKind } from './helpers/fakes.js';
 import { handleEditOrder } from '../src/interactions/handlers/editOrder.js';
 import { handleEditOrderModal } from '../src/interactions/handlers/editOrderModal.js';
-import { handleStartOrder, handleOrderForm1Modal, handleOrderForm2, handleOrderForm2Modal, handleOrderBudgetSelect } from '../src/modules/tickets/flows/OrderFlow.js';
-import { getTicketFields, getTicketById } from '../src/modules/tickets/TicketRepository.js';
+import { handleStartOrderButton } from '../src/interactions/handlers/startOrder.js';
+import { handleOrderFinish, handleOrderFinishModal } from '../src/modules/tickets/flows/OrderFlow.js';
+import { getTicketFields } from '../src/modules/tickets/TicketRepository.js';
 
-function setup(guildId) {
+function setup(guildId, opts = {}) {
   const guild = fakeGuild({ id: guildId });
   const client = fakeMember(guild, { name: 'Alice' });
   const stranger = fakeMember(guild, { name: 'Mallory' });
   const clientChannel = fakeChannel(guild);
-  const ticketId = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: clientChannel.id });
+  const ticketId = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: clientChannel.id, ...opts });
   return { guild, client, stranger, clientChannel, ticketId, discord: fakeClient([clientChannel]) };
 }
 
 const as = (s, member, extra = {}) => fakeInteraction({ client: s.discord, member, guild: s.guild, ...extra });
-
-test('the budget can be changed before submitting, not after', async () => {
-  const guild = fakeGuild({ id: 'g-access-budget' });
-  const client = fakeMember(guild);
-  const ticketId = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: fakeChannel(guild).id, inForm: true });
-  const s = { guild, discord: fakeClient() };
-
-  await handleOrderBudgetSelect(as(s, client, { values: ['100-500'] }), ['order_budget', ticketId]);
-  await handleOrderBudgetSelect(as(s, client, { values: ['1000+'] }), ['order_budget', ticketId]);
-  assert.equal(getTicketFields(ticketId).find((f) => f.field_name === 'budget').field_value, '1000+');
-  assert.equal(getTicketById(ticketId).status, 'form', 'still not submitted');
-
-  const submitted = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: fakeChannel(guild).id });
-  const late = as(s, client, { values: ['<100'] });
-  await handleOrderBudgetSelect(late, ['order_budget', submitted]);
-  assert.equal(answerKind(late), 'reply');
-});
+const BRIEF = { fields: { field_need: 'Hacked', field_size: '1x1', field_theme: 'x', field_budget: '' } };
+const FINISH = { selects: { field_version: ['bedrock'] }, fields: { field_deadline: '01.01.2027' } };
 
 test('only the client can open Edit Order', async () => {
   const s = setup('g-access-edit');
@@ -48,20 +34,18 @@ test('only the client can open Edit Order', async () => {
 
 test('the Edit Order modal re-checks who submits it', async () => {
   const s = setup('g-access-edit-modal');
-  const fields = { field_need: 'Hacked', field_deadline: '', field_reference_urls: '', field_size: '', field_theme: '' };
-  await handleEditOrderModal(as(s, s.stranger, { fields }), ['edit_order_modal', s.ticketId]);
+  await handleEditOrderModal(as(s, s.stranger, BRIEF), ['edit_order_modal', s.ticketId]);
   const need = getTicketFields(s.ticketId).find((f) => f.field_name === 'need');
   assert.equal(need.field_value, 'A spawn castle');
 });
 
 test('only the client can fill the order form', async () => {
-  const s = setup('g-access-form');
+  const s = setup('g-access-form', { inForm: true });
   const steps = [
-    [handleStartOrder, 'start_order', {}],
-    [handleOrderForm1Modal, 'order_form_1', { fields: { field_need: 'Hacked' } }],
-    [handleOrderForm2, 'order_form_2', {}],
-    [handleOrderForm2Modal, 'order_form_2_modal', { fields: { field_version: '1.20' } }],
-    [handleOrderBudgetSelect, 'order_budget', { values: ['1000+'] }],
+    [handleStartOrderButton, 'start_order', {}],
+    [handleEditOrderModal, 'edit_order_modal', BRIEF],
+    [handleOrderFinish, 'order_finish', {}],
+    [handleOrderFinishModal, 'order_finish_modal', FINISH],
   ];
   for (const [handler, prefix, extra] of steps) {
     const i = as(s, s.stranger, extra);
@@ -70,4 +54,12 @@ test('only the client can fill the order form', async () => {
     assert.match(i.calls[0].payload.content, /only the client/i, `${prefix} refusal text`);
   }
   assert.equal(getTicketFields(s.ticketId).length, 1, 'nothing was written by the stranger');
+});
+
+test('version and deadline cannot be changed once a freelancer took the order', async () => {
+  const s = setup('g-access-finish-locked', { assignedFreelancerId: 'f1' });
+  const i = as(s, s.client, FINISH);
+  await handleOrderFinishModal(i, ['order_finish_modal', s.ticketId]);
+  assert.match(i.calls[0].payload.content, /no longer be edited/);
+  assert.ok(!getTicketFields(s.ticketId).some((f) => f.field_name === 'version'));
 });

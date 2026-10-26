@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { seedOrder } from './helpers/db.js';
-import { fakeGuild, fakeMember, fakeChannel, fakeClient, fakeInteraction } from './helpers/fakes.js';
+import { fakeGuild, fakeMember, fakeChannel, fakeClient, fakeInteraction, payloadText } from './helpers/fakes.js';
 import { handleSubmitQuoteModal } from '../src/interactions/handlers/submitQuoteModal.js';
 import { handleDeclineOrder } from '../src/interactions/handlers/declineOrder.js';
 import { handleEditOrderModal } from '../src/interactions/handlers/editOrderModal.js';
@@ -58,10 +58,10 @@ test('once a freelancer took the order, the client can no longer edit it', async
 
 test('editing the order after the quote channel exists tells the freelancers', async () => {
   const s = setup('g-edit-propagate');
-  const fields = { field_need: 'A bigger castle', field_deadline: '', field_reference_urls: '', field_size: '300x300', field_theme: '' };
+  const fields = { field_need: 'A bigger castle', field_size: '300x300', field_theme: 'Medieval', field_budget: '' };
   await handleEditOrderModal(as(s, s.client, { fields }), ['edit_order_modal', s.ticketId]);
-  const update = s.quoteChannel.sent.at(-1);
-  assert.match(update.content, /updated the order/i);
-  assert.match(JSON.stringify(update.embeds[0].data), /A bigger castle/);
-  assert.match(JSON.stringify(update.embeds[0].data), new RegExp('<@' + s.client.id + '>'), 'freelancers see who the client is (owner decision 2026-10-27)');
+  const update = payloadText(s.quoteChannel.sent.at(-1));
+  assert.match(update, /updated the order/i);
+  assert.match(update, /A bigger castle/);
+  assert.match(update, new RegExp('<@' + s.client.id + '>'), 'freelancers see who the client is (owner decision 2026-10-27)');
 });

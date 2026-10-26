@@ -1,10 +1,10 @@
 /**
- * Handler for edit_order:ticketId — show Edit Order modal with pre-filled fields.
+ * Handler for edit_order:ticketId — show the order modal with the current answers.
  */
 
 import { MessageFlags } from 'discord.js';
 import { getTicketById, getTicketFields } from '../../modules/tickets/TicketRepository.js';
-import { buildEditOrderModal, EDIT_CLOSED_TEXT } from '../../embeds/templates.js';
+import { buildOrderModal, EDIT_CLOSED_TEXT } from '../../embeds/templates.js';
 import { STATUS } from '../../modules/tickets/TicketStatus.js';
 import { ensureTicketClient } from '../../utils/permissions.js';
 
@@ -25,7 +25,5 @@ export async function handleEditOrder(interaction, parts) {
     await interaction.reply({ content: EDIT_CLOSED_TEXT, flags: MessageFlags.Ephemeral });
     return;
   }
-  const fields = getTicketFields(ticketId);
-  const modal = buildEditOrderModal(ticketId, fields);
-  await interaction.showModal(modal);
+  await interaction.showModal(buildOrderModal(ticketId, getTicketFields(ticketId)));
 }

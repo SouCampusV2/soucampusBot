@@ -67,6 +67,8 @@ export function fakeChannel(guild, { id = nextId(), parentId = null } = {}) {
       const message = {
         id: nextId(),
         ...data,
+        // Uploaded files come back as attachments with a url, like real messages.
+        attachments: new Collection((data.files ?? []).map((f, n) => [String(n), { url: f.attachment, name: f.name }])),
         async edit(p) {
           Object.assign(message, typeof p === 'string' ? { content: p } : p);
           return message;
@@ -121,7 +123,7 @@ export function fakeClient(channels = []) {
  * Fake interaction. Enforces Discord's "answer once" rule: a second reply/update throws,
  * just like the real API does.
  */
-export function fakeInteraction({ client, member, guild, channel, fields = {}, values, message } = {}) {
+export function fakeInteraction({ client, member, guild, channel, fields = {}, selects = {}, files = {}, values, message } = {}) {
   const user = {
     ...member.user,
     send: async (content) => client?.dms.push({ to: member.id, content }),
@@ -138,7 +140,12 @@ export function fakeInteraction({ client, member, guild, channel, fields = {}, v
     replied: false,
     deferred: false,
     calls: [],
-    fields: { getTextInputValue: (key) => fields[key] ?? '' },
+    fields: {
+      getTextInputValue: (key) => fields[key] ?? '',
+      getStringSelectValues: (key) => selects[key] ?? [],
+      // Modal file uploads: { field_references: [{ url, name }] }; null when none, like discord.js.
+      getUploadedFiles: (key) => (files[key] ? new Collection(files[key].map((f, n) => [String(n), f])) : null),
+    },
   };
   const acknowledged = () => interaction.replied || interaction.deferred;
   const answer = (kind) => async (payload) => {
@@ -182,4 +189,39 @@ export function finalText(interaction) {
   const last = [...interaction.calls].reverse().find((c) => c.payload);
   const p = last?.payload;
   return typeof p === 'string' ? p : p?.content;
+}
+
+const toJson = (c) => (typeof c?.toJSON === 'function' ? c.toJSON() : c);
+
+/** Every component (as JSON) in a payload — classic action rows and V2 cards alike. */
+export function allComponents(payload) {
+  const out = [];
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (!node || typeof node !== 'object') return;
+    if (node.type) out.push(node);
+    Object.values(node).forEach(walk);
+  };
+  walk((payload?.components ?? []).map(toJson));
+  return out;
+}
+
+/** Every custom_id in a payload (buttons, selects), in order. */
+export function customIds(payload) {
+  return allComponents(payload).map((c) => c.custom_id).filter(Boolean);
+}
+
+/** The component with this custom_id, as JSON. */
+export function findComponent(payload, customId) {
+  return allComponents(payload).find((c) => c.custom_id === customId);
+}
+
+/** All text a user would see in a payload — content, embeds and V2 text — for regex checks. */
+export function payloadText(payload) {
+  if (typeof payload === 'string') return payload;
+  return JSON.stringify({
+    content: payload?.content,
+    embeds: (payload?.embeds ?? []).map((e) => e.data ?? e),
+    components: (payload?.components ?? []).map(toJson),
+  });
 }

@@ -81,7 +81,7 @@ test('a quote shows the freelancer\'s track record on this server', async () => 
     fields: { quote_deadline: '2026-12-01', quote_price: '€230', quote_message: '' },
   });
   await handleSubmitQuoteModal(i, ['submit_quote_modal', s.ticketId]);
-  const quote = s.clientChannel.sent.find((m) => m.content?.startsWith('New quote'));
+  const quote = s.clientChannel.sent.find((m) => m.content?.includes('New quote'));
   assert.match(JSON.stringify(quote.embeds[0].data), /4\.5.*2 reviews.*2 orders delivered/);
 });
 
@@ -94,6 +94,6 @@ test('a first-time freelancer is shown as new, not as zero stars', async () => {
     fields: { quote_deadline: '', quote_price: '€100', quote_message: '' },
   });
   await handleSubmitQuoteModal(i, ['submit_quote_modal', s.ticketId]);
-  const quote = s.clientChannel.sent.find((m) => m.content?.startsWith('New quote'));
+  const quote = s.clientChannel.sent.find((m) => m.content?.includes('New quote'));
   assert.match(JSON.stringify(quote.embeds[0].data), /New on this server/);
 });

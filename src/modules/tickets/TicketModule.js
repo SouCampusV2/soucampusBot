@@ -12,10 +12,10 @@ import { handleCreateTicket } from '../../interactions/handlers/createTicket.js'
 import { handleSelectTicketType } from '../../interactions/handlers/selectTicketType.js';
 import { handleConfirmTicket } from '../../interactions/handlers/confirmTicket.js';
 import { handleStartOrderButton } from '../../interactions/handlers/startOrder.js';
-import { handleOrderForm1ModalSubmit } from '../../interactions/handlers/orderForm1Modal.js';
+import { handleOrderNewModalSubmit } from '../../interactions/handlers/orderNewModal.js';
+import { handleOrderFinishButton } from '../../interactions/handlers/orderFinish.js';
+import { handleOrderFinishModalSubmit } from '../../interactions/handlers/orderFinishModal.js';
 import { handleOrderForm2Button } from '../../interactions/handlers/orderForm2.js';
-import { handleOrderForm2ModalSubmit } from '../../interactions/handlers/orderForm2Modal.js';
-import { handleOrderBudget } from '../../interactions/handlers/orderBudget.js';
 import { handleEditOrder } from '../../interactions/handlers/editOrder.js';
 import { handleEditOrderModal } from '../../interactions/handlers/editOrderModal.js';
 import { handleSubmitQuote } from '../../interactions/handlers/submitQuote.js';
@@ -112,11 +112,11 @@ export function registerTicketModule(client) {
   registerHandler(PREFIX.CREATE_TICKET, handleCreateTicket);
   registerHandler(PREFIX.SELECT_TICKET_TYPE, handleSelectTicketType);
   registerHandler(PREFIX.CONFIRM_TICKET, handleConfirmTicket);
+  registerHandler(PREFIX.ORDER_NEW_MODAL, handleOrderNewModalSubmit);
+  registerHandler(PREFIX.ORDER_FINISH, handleOrderFinishButton);
+  registerHandler(PREFIX.ORDER_FINISH_MODAL, handleOrderFinishModalSubmit);
   registerHandler(PREFIX.START_ORDER, handleStartOrderButton);
-  registerHandler(PREFIX.ORDER_FORM_1, handleOrderForm1ModalSubmit);
   registerHandler(PREFIX.ORDER_FORM_2, handleOrderForm2Button);
-  registerHandler(PREFIX.ORDER_FORM_2_MODAL, handleOrderForm2ModalSubmit);
-  registerHandler(PREFIX.ORDER_BUDGET, handleOrderBudget);
   registerHandler(PREFIX.SUBMIT_ORDER, handleSubmitOrder);
   registerHandler(PREFIX.EDIT_ORDER, handleEditOrder);
   registerHandler(PREFIX.EDIT_ORDER_MODAL, handleEditOrderModal);

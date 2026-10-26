@@ -14,7 +14,6 @@ import { getTicketById, getTicketFields, saveTicketField } from '../TicketReposi
 import { STATUS, transitionTicket } from '../TicketStatus.js';
 import { ensureTicketClient, isManagerOrAdmin, getFreelancerRole } from '../../../utils/permissions.js';
 import {
-  startApplicationButtonRow,
   buildApplicationModal,
   getApplicationSummaryPayload,
   buildRejectApplicationModal,
@@ -39,18 +38,6 @@ async function applicationTicket(interaction, ticketId) {
 async function dm(client, userId, content) {
   const user = await client.users.fetch(userId).catch(() => null);
   await user?.send(content).catch(() => {});
-}
-
-/**
- * Called from confirmTicket for application tickets.
- * @param {import('discord.js').TextChannel} channel
- * @param {string} ticketId
- */
-export async function startApplicationFlow(channel, ticketId) {
-  await channel.send({
-    content: 'Want to join the build team? Click below and tell us about yourself — a manager will review it here.',
-    components: [startApplicationButtonRow(ticketId)],
-  });
 }
 
 /** start_application:ticketId — open the form (prefilled when editing). Applicant only, while undecided. */

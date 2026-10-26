@@ -19,8 +19,19 @@ import {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
+  LabelBuilder,
+  FileUploadBuilder,
 } from 'discord.js';
-import { PREFIX, TICKET_TYPES, ORDER_BUDGET_OPTIONS, APPLICATION_FIELDS, REQUIRED_ORDER_FIELDS } from '../constants.js';
+import {
+  PREFIX,
+  TICKET_TYPES,
+  ORDER_BUDGET_OPTIONS,
+  APPLICATION_FIELDS,
+  REQUIRED_ORDER_FIELDS,
+  MINECRAFT_VERSIONS,
+  MAX_REFERENCE_FILES,
+  REFERENCE_MESSAGES_FIELD,
+} from '../constants.js';
 import { getSetting } from '../core/GuildConfig.js';
 import { estimateOrder, formatEstimate } from '../utils/pricing.js';
 
@@ -153,112 +164,273 @@ export function getTicketPanelPayload(guildId, { guildName } = {}) {
   return { components: [card], flags: MessageFlags.IsComponentsV2 };
 }
 
-// --- Order dialog (STEP 2 & 3) ---
+// --- Components V2 building blocks (ticket cards) ---
 
-/** Human-readable labels for order summary embed. */
-export const ORDER_FIELD_LABELS = {
-  need: 'What are you in need of?',
-  deadline: 'When is the deadline?',
-  reference_urls: 'Reference images (URLs)',
-  size: 'Build size',
-  theme: 'Theme',
-  version: 'Product version',
-  extra_details: 'Extra details',
-  budget: 'Budget',
+const text = (content) => new TextDisplayBuilder().setContent(content);
+const divider = (spacing = SeparatorSpacingSize.Small) => new SeparatorBuilder().setSpacing(spacing);
+/** A V2 message is ONLY components: no content, no embeds (Discord rejects the mix). */
+const v2 = (card) => ({ components: [card], flags: MessageFlags.IsComponentsV2 });
+/** V2 caps the text of a whole message at 4000 characters — long answers are clipped for display. */
+const clip = (value, max) => (value.length > max ? `${value.slice(0, max - 1)}…` : value);
+
+// --- Ticket welcome cards (first message of every ticket) ---
+
+const WELCOME = {
+  [TICKET_TYPES.ORDER]: (userId) =>
+    '# 🧱 Your order\n' +
+    `Hi <@${userId}>, thanks for choosing us! This channel is private — only you and our team can see it.`,
+  [TICKET_TYPES.HELP]: (userId) =>
+    '# ❓ Support\n' + `Hi <@${userId}>! Tell us what is going on and a team member will answer right here.`,
+  [TICKET_TYPES.APPLICATION]: (userId) =>
+    '# 📝 Join the team\n' + `Hi <@${userId}>! We are always looking for builders who love detail.`,
+};
+
+const WELCOME_BODY = {
+  [TICKET_TYPES.ORDER]:
+    '### How it works\n' +
+    '**1 · Finish the details** — Minecraft version and deadline, on the card below.\n' +
+    '**2 · Submit** — builders get your request and send their quotes right here.\n' +
+    '**3 · Pick a builder** — compare price, deadline and reviews. Questions first? Press **Contact freelancer**.\n' +
+    '**4 · Pay, then relax** — a manager confirms the payment and the builder gets to work.\n' +
+    '**5 · Get your build** — and tell others how it went with a review.',
+  [TICKET_TYPES.HELP]:
+    '### Help us help you faster\n' +
+    '• which order or map it is about\n' +
+    '• what you expected, and what happened instead\n' +
+    '• screenshots or a short video, if you have them',
+  [TICKET_TYPES.APPLICATION]:
+    '### What we look at\n' +
+    '• **Portfolio** — screenshots, Planet Minecraft, a website\n' +
+    '• **Styles** you are strongest in\n' +
+    '• **Time** — how many hours a week you can build\n' +
+    '### Next step\n' +
+    'Press **Fill application** — a manager reviews it here and answers in this channel.',
 };
 
 /**
- * Budget Select Menu for order dialog step 8 (customId: order_budget:ticketId).
- * @param {string} ticketId
- * @returns {ActionRowBuilder<StringSelectMenuBuilder>}
+ * The first message of a ticket: who it is for, what happens next, and the ticket's buttons.
+ * Rebuilt with `closed` when the ticket closes — a V2 message cannot just drop its components,
+ * they ARE its content.
+ * @param {{ id: string, type: string, client_id: string, guild_id?: string }} ticket
+ * @param {{ closed?: boolean }} [options]
  */
-export function orderBudgetSelectRow(ticketId) {
-  const select = new StringSelectMenuBuilder()
-    .setCustomId(`${PREFIX.ORDER_BUDGET}:${ticketId}`)
-    .setPlaceholder('Choose your budget range')
-    .addOptions(
-      ORDER_BUDGET_OPTIONS.map((opt) => ({
-        label: opt.label,
-        value: opt.value,
-      }))
+export function ticketWelcomePayload(ticket, { closed = false } = {}) {
+  const card = new ContainerBuilder()
+    .setAccentColor(brandColor(ticket.guild_id))
+    .addTextDisplayComponents(text(WELCOME[ticket.type](ticket.client_id)))
+    .addSeparatorComponents(divider())
+    .addTextDisplayComponents(text(WELCOME_BODY[ticket.type]))
+    .addSeparatorComponents(divider());
+  if (closed) return v2(card.addTextDisplayComponents(text(`-# Ticket \`${ticket.id}\` · 🔒 Closed`)));
+
+  card.addTextDisplayComponents(
+    text(`-# Ticket \`${ticket.id}\` · Anything unclear? Just write in this channel — a manager will answer.`)
+  );
+  const row = new ActionRowBuilder();
+  if (ticket.type === TICKET_TYPES.APPLICATION) {
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX.START_APPLICATION}:${ticket.id}`).setLabel('Fill application').setStyle(ButtonStyle.Primary)
     );
-  return new ActionRowBuilder().addComponents(select);
-}
-
-/**
- * Order summary embed (STEP 3) — one field per answer.
- * @param {{ field_name: string, field_value: string }[]} fields
- * @returns {EmbedBuilder}
- */
-export function orderSummaryEmbed(fields) {
-  const embed = new EmbedBuilder()
-    .setColor(EMBED_COLOR)
-    .setTitle('Order summary')
-    .setDescription('Review your order. Click **Edit Order** to change any field.')
-    .setTimestamp();
-  addOrderFields(embed, fields);
-  return embed;
-}
-
-/**
- * One field per answer (budget shown by its label), plus the price estimate when the size is readable.
- * @param {EmbedBuilder} embed
- * @param {{ field_name: string, field_value: string }[]} fields
- */
-function addOrderFields(embed, fields) {
-  for (const f of fields) {
-    const label = ORDER_FIELD_LABELS[f.field_name] || f.field_name;
-    const value = f.field_name === 'budget' ? budgetLabel(f.field_value) : f.field_value;
-    embed.addFields({ name: label, value: (value || '-').slice(0, 1024), inline: false });
   }
-  const estimate = estimateOrder(fields.find((f) => f.field_name === 'size')?.field_value);
-  if (estimate) {
-    embed.addFields({ name: 'Estimate (guide)', value: `${formatEstimate(estimate)} — the freelancer's quote sets the real price` });
-  }
+  row.addComponents(
+    new ButtonBuilder().setCustomId(`${PREFIX.CLOSE_TICKET}:${ticket.id}`).setLabel('Close ticket').setStyle(ButtonStyle.Secondary)
+  );
+  return v2(card.addActionRowComponents(row));
 }
 
-/** '100-500' -> '€100–€500' (the stored value stays stable when labels change). */
+// --- Order form (STEP 2 & 3) ---
+
+/** Human-readable labels of order answers (summary, order card, freelancer brief). */
+export const ORDER_FIELD_LABELS = {
+  need: 'What to build',
+  size: 'Size',
+  theme: 'Style',
+  budget: 'Budget & timeframe',
+  version: 'Minecraft version',
+  deadline: 'Deadline',
+  extra_details: 'Extra details',
+  reference_urls: 'References',
+};
+
+/** Max length of each answer — keeps a whole summary under the 4000-character V2 limit. */
+const ORDER_MAX_LENGTH = { need: 1500, size: 100, theme: 100, budget: 300, deadline: 100, extra_details: 800 };
+
+/** '100-500' -> '€100–€500' for budgets from the old menu; free text (the modal) stays as typed. */
 export function budgetLabel(value) {
   return ORDER_BUDGET_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
 
-/**
- * Edit Order button row (customId: edit_order:ticketId). Shown below summary.
- * @param {string} ticketId
- * @returns {ActionRowBuilder<ButtonBuilder>}
- */
-export function editOrderButtonRow(ticketId) {
-  const button = new ButtonBuilder()
-    .setCustomId(`${PREFIX.EDIT_ORDER}:${ticketId}`)
-    .setLabel('Edit Order')
-    .setStyle(ButtonStyle.Secondary);
-  return new ActionRowBuilder().addComponents(button);
+/** '1.16-1.19' -> 'Java 1.16 – 1.19'; versions typed in the old form stay as typed. */
+export function versionLabel(value) {
+  return MINECRAFT_VERSIONS.find((o) => o.value === value)?.label ?? value;
+}
+
+/** A modal question: label + hint above an input (Discord's Label component). */
+function question(label, description, component) {
+  const item = new LabelBuilder().setLabel(label).setDescription(description);
+  if (component instanceof TextInputBuilder) return item.setTextInputComponent(component);
+  if (component instanceof StringSelectMenuBuilder) return item.setStringSelectMenuComponent(component);
+  return item.setFileUploadComponent(component);
+}
+
+function answerInput(key, value, { paragraph = false, placeholder } = {}) {
+  const input = new TextInputBuilder()
+    .setCustomId(`field_${key}`)
+    .setStyle(paragraph ? TextInputStyle.Paragraph : TextInputStyle.Short)
+    .setMaxLength(ORDER_MAX_LENGTH[key])
+    .setRequired(REQUIRED_ORDER_FIELDS.includes(key));
+  if (placeholder) input.setPlaceholder(placeholder);
+  if (value) input.setValue(value.slice(0, ORDER_MAX_LENGTH[key]));
+  return input;
 }
 
 /**
- * Full order summary payload. Before submitting: Edit Order + Submit order. After: Edit Order only.
- * @param {{ field_name: string, field_value: string }[]} fields
- * @param {string} ticketId
- * @param {{ submitted?: boolean }} [options]
+ * The order modal — the whole brief in one window, like the commission forms of other studios.
+ * From the panel (no ticketId): customId order_new, submitting it creates the ticket.
+ * In a ticket: Edit order, prefilled; customId edit_order_modal:ticketId. Files cannot be
+ * prefilled — on edit the upload adds more references.
+ * @param {string | null} ticketId
+ * @param {{ field_name: string, field_value: string }[]} [fields]
  */
-export function getOrderSummaryPayload(fields, ticketId, { submitted = true } = {}) {
-  const row = editOrderButtonRow(ticketId);
+export function buildOrderModal(ticketId, fields = []) {
+  const value = Object.fromEntries(fields.map((f) => [f.field_name, f.field_value || '']));
+  const modal = new ModalBuilder()
+    .setCustomId(ticketId ? `${PREFIX.EDIT_ORDER_MODAL}:${ticketId}` : PREFIX.ORDER_NEW_MODAL)
+    .setTitle(ticketId ? 'Edit your order' : 'Start your order');
+  return modal.addLabelComponents(
+    question(
+      'What should we build?',
+      'Spawn, hub, lobby, arena, RPG map… The more detail, the better the quotes.',
+      answerInput('need', value.need, { paragraph: true, placeholder: 'e.g. A medieval spawn: castle, market and 4 portals to game modes' })
+    ),
+    question(
+      'Build size',
+      'In blocks. Guide: about €1.5 per block of side (150×150 ≈ €225).',
+      answerInput('size', value.size, { placeholder: 'e.g. 150x150' })
+    ),
+    question('Style / theme', 'The look you are after.', answerInput('theme', value.theme, { placeholder: 'e.g. Medieval, Japanese, Fantasy, Modern' })),
+    question(
+      'Budget and timeframe',
+      'Leave empty if you do not know yet — the builders will suggest.',
+      answerInput('budget', value.budget ? budgetLabel(value.budget) : '', { paragraph: true, placeholder: 'e.g. €300, ready in 3 weeks' })
+    ),
+    question(
+      ticketId ? 'Add more references' : 'References',
+      `Screenshots, sketches or schematics you like (up to ${MAX_REFERENCE_FILES} files).`,
+      new FileUploadBuilder().setCustomId('field_references').setMinValues(0).setMaxValues(MAX_REFERENCE_FILES).setRequired(false)
+    )
+  );
+}
+
+/**
+ * Version & deadline modal (in the ticket, after the order modal). customId order_finish_modal:ticketId
+ * @param {string} ticketId
+ * @param {{ field_name: string, field_value: string }[]} [fields]
+ */
+export function buildOrderFinishModal(ticketId, fields = []) {
+  const value = Object.fromEntries(fields.map((f) => [f.field_name, f.field_value || '']));
+  const versions = new StringSelectMenuBuilder()
+    .setCustomId('field_version')
+    .setPlaceholder('Choose a version')
+    .setRequired(true)
+    .addOptions(MINECRAFT_VERSIONS.map((o) => ({ ...o, default: o.value === value.version })));
+  return new ModalBuilder()
+    .setCustomId(`${PREFIX.ORDER_FINISH_MODAL}:${ticketId}`)
+    .setTitle('Version & deadline')
+    .addLabelComponents(
+      question('Minecraft version', 'The version your server runs.', versions),
+      question(
+        'Deadline',
+        'A date, e.g. 25.12.2026 or "in 3 weeks". The builder gets reminders before it.',
+        answerInput('deadline', value.deadline, { placeholder: 'e.g. 25.12.2026' })
+      ),
+      question(
+        'Anything else?',
+        'Plugins, links (Pinterest, YouTube), must-haves, things to avoid…',
+        answerInput('extra_details', value.extra_details, { paragraph: true })
+      )
+    );
+}
+
+/**
+ * The answers as card text. `references` says where the files are for this reader.
+ * @param {{ field_name: string, field_value: string }[]} fields
+ * @param {string | null} references - e.g. 'posted in this channel', null = none
+ */
+function orderDetailsText(fields, references) {
+  const value = Object.fromEntries(fields.map((f) => [f.field_name, (f.field_value ?? '').trim()]));
+  const missing = '`❗ not set yet`';
+  const lines = [
+    `**🧱 ${ORDER_FIELD_LABELS.need}**\n${clip(value.need || missing, 1500)}`,
+    `**📐 ${ORDER_FIELD_LABELS.size}:** ${clip(value.size || missing, 100)}   **🎨 ${ORDER_FIELD_LABELS.theme}:** ${clip(value.theme || missing, 100)}`,
+    `**🧩 ${ORDER_FIELD_LABELS.version}:** ${value.version ? versionLabel(value.version) : missing}`,
+    `**📅 ${ORDER_FIELD_LABELS.deadline}:** ${clip(value.deadline || missing, 100)}`,
+    `**💶 ${ORDER_FIELD_LABELS.budget}:** ${value.budget ? clip(budgetLabel(value.budget), 300) : '_not given — open to suggestions_'}`,
+  ];
+  if (references) lines.push(`**🖼️ ${ORDER_FIELD_LABELS.reference_urls}:** ${references}`);
+  if (value.reference_urls) lines.push(`**🔗 Reference links**\n${clip(value.reference_urls, 300)}`);
+  if (value.extra_details) lines.push(`**📝 ${ORDER_FIELD_LABELS.extra_details}**\n${clip(value.extra_details, 800)}`);
+  const estimate = estimateOrder(value.size);
+  if (estimate) lines.push(`**💡 Price guide:** ${formatEstimate(estimate)} — the builder's quote sets the real price`);
+  return lines.join('\n');
+}
+
+/** Labels of the required answers asked in the order modal (the rest are in Version & deadline). */
+const BRIEF_LABELS = ['need', 'size', 'theme'].map((k) => ORDER_FIELD_LABELS[k]);
+
+/** True when the order has reference files posted in its channel. */
+function hasReferenceFiles(fields) {
+  return Boolean(fields.find((f) => f.field_name === REFERENCE_MESSAGES_FIELD)?.field_value);
+}
+
+/**
+ * The order summary card in the client's channel — edited in place by Version & deadline,
+ * Edit order and Submit order. Before submitting: what is still missing + Submit (disabled
+ * until complete). After: "submitted"; the edit buttons stay while the order is open.
+ * @param {{ id: string, status: string, guild_id?: string }} ticket
+ * @param {{ field_name: string, field_value: string }[]} fields
+ */
+export function getOrderSummaryPayload(ticket, fields) {
+  const submitted = ticket.status !== 'form';
+  const missing = missingOrderFields(fields);
+  const card = new ContainerBuilder()
+    .setAccentColor(brandColor(ticket.guild_id))
+    .addTextDisplayComponents(text(`## 📋 Order summary\n-# Ticket \`${ticket.id}\``))
+    .addSeparatorComponents(divider())
+    .addTextDisplayComponents(text(orderDetailsText(fields, hasReferenceFiles(fields) ? 'posted in this channel' : null)))
+    .addSeparatorComponents(divider());
+
+  let status;
+  if (submitted) status = '📨 **Submitted** — builders are looking at it. Their quotes will appear in this channel.';
+  else if (missing.length) {
+    // Point at the button whose modal asks the missing answer (an order from the old type menu has none yet).
+    const where = missing.some((m) => BRIEF_LABELS.includes(m)) ? 'Edit order' : 'Version & deadline';
+    status = `⬇️ **Almost there!** Still needed: **${missing.join('**, **')}** — press **${where}**.`;
+  }
+  else status = '✅ **Ready to go.** Check everything, then press **Submit order** — builders only see your order after that.';
+  card.addTextDisplayComponents(text(status));
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX.ORDER_FINISH}:${ticket.id}`)
+      .setLabel('Version & deadline')
+      .setStyle(!submitted && missing.length ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`${PREFIX.EDIT_ORDER}:${ticket.id}`).setLabel('Edit order').setStyle(ButtonStyle.Secondary)
+  );
   if (!submitted) {
     row.addComponents(
-      new ButtonBuilder().setCustomId(`${PREFIX.SUBMIT_ORDER}:${ticketId}`).setLabel('Submit order').setStyle(ButtonStyle.Success)
+      new ButtonBuilder()
+        .setCustomId(`${PREFIX.SUBMIT_ORDER}:${ticket.id}`)
+        .setLabel('Submit order')
+        .setStyle(ButtonStyle.Success)
+        .setDisabled(missing.length > 0)
     );
   }
-  return {
-    content: submitted
-      ? '✅ Order submitted — freelancers can now send quotes.'
-      : 'Check your order. When everything is right, press **Submit order** — only then freelancers will see it.',
-    embeds: [orderSummaryEmbed(fields)],
-    components: [row],
-  };
+  return v2(card.addActionRowComponents(row));
 }
 
 /**
- * Required answers still empty, as human labels — for the Submit refusal.
+ * Required answers still empty, as human labels — for the summary and the Submit refusal.
  * @param {{ field_name: string, field_value: string }[]} fields
  * @returns {string[]}
  */
@@ -271,144 +443,46 @@ export function missingOrderFields(fields) {
 export const EDIT_CLOSED_TEXT =
   'This order can no longer be edited — a freelancer has already taken it. Talk to them or a manager about changes.';
 
-/** First 5 order fields shown in Edit modal (Discord limit 5 TextInputs per modal). Rest (version, extra_details, budget) stay as-is on edit. */
-export const EDIT_ORDER_MODAL_FIELDS = ['need', 'deadline', 'reference_urls', 'size', 'theme'];
-
-/** Order form part 2: version + extra_details (modal 2). */
-export const ORDER_FORM_2_FIELDS = ['version', 'extra_details'];
-
-/**
- * Start order button row (customId: start_order:ticketId). Shown in order channel to open form.
- * @param {string} ticketId
- * @returns {ActionRowBuilder<ButtonBuilder>}
- */
-export function startOrderButtonRow(ticketId) {
-  const button = new ButtonBuilder()
-    .setCustomId(`${PREFIX.START_ORDER}:${ticketId}`)
-    .setLabel('Fill order form')
-    .setStyle(ButtonStyle.Primary);
-  return new ActionRowBuilder().addComponents(button);
-}
-
-/**
- * Build Order form part 1 modal (5 fields: need, deadline, reference_urls, size, theme). Empty for new order.
- * Modal customId: order_form_1:ticketId
- * @param {string} ticketId
- * @param {{ field_name: string, field_value: string }[]} [fields] - optional prefill (e.g. when resuming)
- * @returns {ModalBuilder}
- */
-export function buildOrderForm1Modal(ticketId, fields = []) {
-  const valueByKey = Object.fromEntries((fields || []).map((f) => [f.field_name, f.field_value || '']));
-  const modal = new ModalBuilder()
-    .setCustomId(`${PREFIX.ORDER_FORM_1}:${ticketId}`)
-    .setTitle('Order — Part 1');
-
-  const labels = {
-    need: 'What are you in need of?',
-    deadline: 'When is the deadline? (e.g. 25.12.2026)',
-    reference_urls: 'Reference images (URLs)',
-    size: 'Build size',
-    theme: 'Theme',
-  };
-  EDIT_ORDER_MODAL_FIELDS.forEach((key) => {
-    const input = new TextInputBuilder()
-      .setCustomId(`field_${key}`)
-      .setLabel(labels[key] || key)
-      .setStyle(key === 'reference_urls' ? TextInputStyle.Paragraph : TextInputStyle.Short)
-      .setValue((valueByKey[key] || '').slice(0, 4000))
-      .setRequired(REQUIRED_ORDER_FIELDS.includes(key));
-    modal.addComponents(new ActionRowBuilder().addComponents(input));
-  });
-  return modal;
-}
-
-/**
- * Build Order form part 2 modal (version, extra_details). Modal customId: order_form_2_modal:ticketId
- * @param {string} ticketId
- * @param {{ field_name: string, field_value: string }[]} fields - current ticket_fields for prefill
- * @returns {ModalBuilder}
- */
-export function buildOrderForm2Modal(ticketId, fields) {
-  const valueByKey = Object.fromEntries(fields.map((f) => [f.field_name, f.field_value || '']));
-  const modal = new ModalBuilder()
-    .setCustomId(`${PREFIX.ORDER_FORM_2_MODAL}:${ticketId}`)
-    .setTitle('Order — Part 2');
-
-  const labels = { version: 'Product version', extra_details: 'Any extra details?' };
-  ORDER_FORM_2_FIELDS.forEach((key) => {
-    const input = new TextInputBuilder()
-      .setCustomId(`field_${key}`)
-      .setLabel(labels[key] || key)
-      .setStyle(key === 'extra_details' ? TextInputStyle.Paragraph : TextInputStyle.Short)
-      .setValue((valueByKey[key] || '').slice(0, 4000))
-      .setRequired(REQUIRED_ORDER_FIELDS.includes(key));
-    modal.addComponents(new ActionRowBuilder().addComponents(input));
-  });
-  return modal;
-}
-
-/**
- * "Continue" button for order form part 2 (customId: order_form_2:ticketId).
- * @param {string} ticketId
- * @returns {ActionRowBuilder<ButtonBuilder>}
- */
-export function orderForm2ButtonRow(ticketId) {
-  const button = new ButtonBuilder()
-    .setCustomId(`${PREFIX.ORDER_FORM_2}:${ticketId}`)
-    .setLabel('Continue — version & details')
-    .setStyle(ButtonStyle.Primary);
-  return new ActionRowBuilder().addComponents(button);
-}
-
-/**
- * Build Edit Order modal with pre-filled values (STEP 3). Modal customId: edit_order_modal:ticketId.
- * @param {string} ticketId
- * @param {{ field_name: string, field_value: string }[]} fields - current ticket_fields (to get values)
- * @returns {ModalBuilder}
- */
-export function buildEditOrderModal(ticketId, fields) {
-  const valueByKey = Object.fromEntries(fields.map((f) => [f.field_name, f.field_value || '']));
-  const modal = new ModalBuilder()
-    .setCustomId(`${PREFIX.EDIT_ORDER_MODAL}:${ticketId}`)
-    .setTitle('Edit Order');
-
-  const labels = {
-    need: 'What are you in need of?',
-    deadline: 'When is the deadline?',
-    reference_urls: 'Reference images (URLs)',
-    size: 'Build size',
-    theme: 'Theme',
-  };
-  const rows = EDIT_ORDER_MODAL_FIELDS.map((key) => {
-    const input = new TextInputBuilder()
-      .setCustomId(`field_${key}`)
-      .setLabel(labels[key] || key)
-      .setStyle(key === 'reference_urls' ? TextInputStyle.Paragraph : TextInputStyle.Short)
-      .setValue((valueByKey[key] || '').slice(0, 4000))
-      .setRequired(REQUIRED_ORDER_FIELDS.includes(key));
-    return new ActionRowBuilder().addComponents(input);
-  });
-  modal.addComponents(...rows);
-  return modal;
+/** Caption of the message that carries the client's reference files. */
+export function referencesCaption(clientId, { forFreelancers = false } = {}) {
+  return forFreelancers ? '🖼️ **References from the client**' : `🖼️ **References** from <@${clientId}>`;
 }
 
 // --- Freelancer channel (STEP 4) ---
 
 /**
- * Order details embed for freelancer channel (same fields as summary, no client name).
+ * The order as freelancers see it in the quote channel: the brief + Submit Quote / Send Message /
+ * Not Interested. `updated`: the client edited the order — same brief, no buttons (the first
+ * post keeps them).
+ * @param {{ id: string, client_id: string, guild_id?: string }} ticket
  * @param {{ field_name: string, field_value: string }[]} fields
- * @returns {EmbedBuilder}
+ * @param {{ updated?: boolean }} [options]
  */
-export function orderSummaryEmbedForFreelancers(fields, clientId) {
+export function orderBriefPayload(ticket, fields, { updated = false } = {}) {
   // The client is shown on purpose (owner's decision 2026-10-27): the quote channel is named
   // after them anyway, and on one server everyone sees each other — pretending otherwise misleads.
-  const embed = new EmbedBuilder()
-    .setColor(EMBED_COLOR)
-    .setTitle('Order — request for quote')
-    .setDescription((clientId ? `Client: <@${clientId}>\n` : '') + 'Submit a quote, send a message, or decline.')
-    .setTimestamp();
-  addOrderFields(embed, fields);
-  return embed;
+  const card = new ContainerBuilder()
+    .setAccentColor(brandColor(ticket.guild_id))
+    .addTextDisplayComponents(
+      text(
+        (updated ? '## 📝 The client updated the order' : '## 🧱 New order — request for quote') +
+          `\nClient: <@${ticket.client_id}> · Ticket \`${ticket.id}\``
+      )
+    )
+    .addSeparatorComponents(divider())
+    .addTextDisplayComponents(text(orderDetailsText(fields, hasReferenceFiles(fields) ? 'files below' : null)));
+  if (updated) return v2(card);
+  return v2(
+    card
+      .addSeparatorComponents(divider())
+      .addTextDisplayComponents(
+        text(
+          '-# **Submit Quote** — your price and deadline; the client sees it with your rating. ' +
+            '**Send Message** — ask the client first. **Not Interested** — hides this channel for you.'
+        )
+      )
+      .addActionRowComponents(...freelancerActionButtonRows(ticket.id))
+  );
 }
 
 /**
@@ -482,7 +556,7 @@ export function quoteEmbed(data, freelancerUsername, stats) {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setAuthor({ name: freelancerUsername })
-    .setTitle('Quote');
+    .setTitle('💰 Quote');
   if (stats) embed.setDescription(trackRecordText(stats));
   return embed
     .addFields(
@@ -892,7 +966,7 @@ export function getApplicationSummaryPayload(fields, ticketId, applicantId, guil
     new ButtonBuilder().setCustomId(`${PREFIX.REJECT_APPLICATION}:${ticketId}`).setLabel('Reject').setStyle(ButtonStyle.Danger)
   );
   return {
-    content: 'Managers: review the application below.',
+    content: '📝 **New team application** — managers, review it below. The applicant can still edit it until you decide.',
     embeds: [embed],
     components: [startApplicationButtonRow(ticketId, 'Edit application'), decision],
   };

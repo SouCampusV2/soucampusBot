@@ -1,9 +1,10 @@
 /**
- * Handler for order_form_2:ticketId — show Order form part 2 modal (version, extra_details).
+ * Handler for order_form_2:ticketId — legacy "Continue — version & details" button in tickets
+ * opened before the order modal (2026-10-26). Opens Version & deadline.
  */
 
-import { handleOrderForm2 } from '../../modules/tickets/flows/OrderFlow.js';
+import { handleOrderFinish } from '../../modules/tickets/flows/OrderFlow.js';
 
 export async function handleOrderForm2Button(interaction, parts) {
-  await handleOrderForm2(interaction, parts);
+  await handleOrderFinish(interaction, parts);
 }

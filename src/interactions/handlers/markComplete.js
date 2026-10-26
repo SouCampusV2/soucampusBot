@@ -41,7 +41,10 @@ export async function handleMarkComplete(interaction, parts) {
     const clientChannel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
     if (clientChannel) {
       await clientChannel.send({
-        content: 'Your order is complete! Please leave a review. When you are done, you can close the ticket.',
+        content:
+          '🎉 **Your build is ready!** Thanks for ordering with us.\n' +
+          'How did it go? A short review helps other server owners choose — and means a lot to the builder. ' +
+          'When you are done, you can close the ticket.',
         components: [leaveReviewButtonRow(ticketId), closeTicketButtonRow(ticketId)],
       });
       await clientChannel.send(siteConsentPayload(ticketId, 'portfolio'));

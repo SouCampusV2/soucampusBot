@@ -5,6 +5,7 @@
  */
 
 import { MessageFlags } from 'discord.js';
+import { ticketWelcomePayload } from '../../embeds/templates.js';
 import { getTicketById } from '../../modules/tickets/TicketRepository.js';
 import { closeRefusal } from '../../modules/tickets/TicketStatus.js';
 import { beginClose, archiveClosed } from '../../modules/tickets/closing.js';
@@ -31,7 +32,9 @@ export async function handleCloseTicket(interaction, parts) {
     return;
   }
   try {
-    await interaction.update({ components: [] });
+    // The welcome card is V2: its components ARE the message, so it is redrawn closed instead of emptied.
+    const isCard = interaction.message?.flags?.has?.(MessageFlags.IsComponentsV2);
+    await interaction.update(isCard ? ticketWelcomePayload(closed.ticket, { closed: true }) : { components: [] });
     await archiveClosed(interaction.client, closed, { closedBy: interaction.user.id });
   } catch (err) {
     logger.error('close_ticket failed', { ticketId, error: err.message });

@@ -175,7 +175,8 @@ handler(interaction, parts)
 | Текст или вид сообщения | `src/embeds/templates.js` |
 | Права менеджера/ролей | `src/utils/permissions.js` |
 | Новая настройка `/setup` | `GuildConfig.js` (`SETTINGS`), `setupCommand.js`, колонка в `schema.sql` + `runMigrations` |
-| Форма заказа | `OrderFlow.js`, `templates.js` (`EDIT_ORDER_MODAL_FIELDS`, `ORDER_FORM_2_FIELDS`), `constants.js` |
+| Форма заказа | `OrderFlow.js`, `templates.js` (`buildOrderModal`, `buildOrderFinishModal`, `getOrderSummaryPayload`), `constants.js` (`ORDER_FIELDS`, `REQUIRED_ORDER_FIELDS`, `MINECRAFT_VERSIONS`) |
+| Создание тикета (канал, приветствие) | `modules/tickets/openTicket.js`, карточка — `templates.js` → `ticketWelcomePayload` |
 | Канал квот | `OrderFlow.js` → `createQuoteChannelForTicket` |
 | Новая колонка | `schema.sql` + `Database.js` → `runMigrations` |
 | Что делает бот на старте | `TicketModule.js` → `ClientReady` |

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setSetting } from './helpers/db.js';
-import { fakeGuild, fakeMember, fakeRole, fakeChannel, fakeClient, fakeInteraction, answerKind, answerText } from './helpers/fakes.js';
+import { fakeGuild, fakeMember, fakeRole, fakeChannel, fakeClient, fakeInteraction, answerKind, answerText, customIds } from './helpers/fakes.js';
 import { handleConfirmTicket } from '../src/interactions/handlers/confirmTicket.js';
 import {
   handleStartApplication,
@@ -44,7 +44,7 @@ const as = (s, member, extra = {}) => fakeInteraction({ client: s.discord, membe
 test('applying opens apply-<name> with a Fill application button', async () => {
   const s = await setup('g-app-open');
   assert.equal(s.channel.name, 'apply-steve');
-  const buttons = s.channel.sent.flatMap((m) => m.components ?? []).flatMap((row) => row.components.map((c) => c.data.custom_id));
+  const buttons = s.channel.sent.flatMap(customIds);
   assert.ok(buttons.includes(`start_application:${s.ticketId}`));
 });
 

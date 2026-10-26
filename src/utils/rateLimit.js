@@ -9,6 +9,17 @@ import { logger } from './logger.js';
 const lastCreateByUser = new Map();
 
 /**
+ * Peek: is the user still in the cooldown? Does not count as an attempt — the order modal asks
+ * before the client types a brief, the submit consumes.
+ * @param {string} userId
+ * @returns {boolean}
+ */
+export function isTicketCreateLimited(userId) {
+  const last = lastCreateByUser.get(userId);
+  return last != null && Date.now() - last < TICKET_CREATE_COOLDOWN_MS;
+}
+
+/**
  * Check if user is within cooldown; if not, record and return true. If yes, return false.
  * @param {string} userId
  * @returns {boolean} true if allowed, false if rate limited

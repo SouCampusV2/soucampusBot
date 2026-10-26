@@ -1,6 +1,14 @@
 /**
- * Order dialog flow (STEP 2): modal-based form, then budget select, then summary.
- * Flow: "Fill order form" button → Modal 1 (5 fields) → "Continue" → Modal 2 (version, extra_details) → Budget select → Summary + Edit Order.
+ * Order flow (STEPS 2–4): the brief is filled BEFORE the ticket exists, like the commission
+ * forms of other studios (owner's decision 2026-10-26).
+ *
+ *   Panel "Start my project" → order modal (what, size, style, budget & timeframe, files)
+ *   → its submit creates the ticket: welcome card, the reference files, the summary card
+ *   → summary card: Version & deadline (modal) · Edit order (the order modal again) · Submit order
+ *   → Submit: form → open, quote channel with the brief and the files.
+ *
+ * The summary card is ONE message edited in place: every modal opened from its buttons answers
+ * with interaction.update().
  */
 
 import {
@@ -14,200 +22,261 @@ import {
 } from '../TicketRepository.js';
 import { getSetting } from '../../../core/GuildConfig.js';
 import { STATUS, transitionTicket } from '../TicketStatus.js';
+import { refreshOrderCard } from '../OrderCard.js';
+import { openTicketChannel, ticketCategoryId, NOT_CONFIGURED_TEXT } from '../openTicket.js';
 import {
-  orderBudgetSelectRow,
   getOrderSummaryPayload,
-  startOrderButtonRow,
-  buildOrderForm1Modal,
-  buildOrderForm2Modal,
-  orderForm2ButtonRow,
+  buildOrderModal,
+  buildOrderFinishModal,
   missingOrderFields,
-  orderSummaryEmbedForFreelancers,
-  freelancerActionButtonRows,
-  EDIT_ORDER_MODAL_FIELDS,
-  ORDER_FORM_2_FIELDS,
+  orderBriefPayload,
+  referencesCaption,
   deadlineWarning,
+  EDIT_CLOSED_TEXT,
 } from '../../../embeds/templates.js';
-import { ORDER_QUESTION_KEYS } from '../../../constants.js';
+import { TICKET_TYPES, REFERENCE_MESSAGES_FIELD } from '../../../constants.js';
 import { getQuoteChannelName } from '../../../utils/channelNaming.js';
 import { getManagerRole, getFreelancerRole, ensureTicketClient } from '../../../utils/permissions.js';
+import { tryConsumeTicketCreate, isTicketCreateLimited } from '../../../utils/rateLimit.js';
 import { replyError } from '../../../utils/replies.js';
 import { logger } from '../../../utils/logger.js';
 import { ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 
+const ephemeral = (content) => ({ content, flags: MessageFlags.Ephemeral });
+
+/** Text answers of the order modal and of the Version & deadline modal. */
+const ORDER_MODAL_FIELDS = ['need', 'size', 'theme', 'budget'];
+const FINISH_MODAL_FIELDS = ['deadline', 'extra_details'];
+
+/** The client may change the brief before submitting and while quotes come in — not once a freelancer took it. */
+const EDITABLE = [STATUS.FORM, STATUS.OPEN];
+
+const RATE_LIMIT_TEXT = 'You can create only one ticket per 60 seconds. Please wait a moment and try again.';
+
+/** Reference files uploaded in the order modal (none when the client skipped the upload). */
+function uploadedReferences(interaction) {
+  return [...(interaction.fields.getUploadedFiles('field_references')?.values() ?? [])];
+}
+
+/** Save the text answers of the order modal; returns the uploaded files. */
+function saveOrderModal(interaction, ticketId) {
+  for (const key of ORDER_MODAL_FIELDS) {
+    saveTicketField(ticketId, key, interaction.fields.getTextInputValue(`field_${key}`)?.trim() || '');
+  }
+  return uploadedReferences(interaction);
+}
+
 /**
- * Start order dialog: send message with "Fill order form" button (opens modal like Edit Order).
- * Call this from confirmTicket when type === 'order'.
+ * Post files as attachments of a new message. Modal uploads live on temporary links, so the
+ * bot re-uploads them — the message is the lasting copy.
+ * @returns {Promise<import('discord.js').Message | null>} null when nothing was posted
+ */
+async function postReferences(channel, files, caption) {
+  if (!files.length) return null;
+  try {
+    return await channel.send({
+      content: caption,
+      files: files.map((f) => ({ attachment: f.url, name: f.name })),
+      allowedMentions: { parse: [] },
+    });
+  } catch (err) {
+    logger.warn('Reference files could not be posted', { channelId: channel.id, count: files.length, error: err.message });
+    await channel
+      .send(`⚠️ ${files.length} reference file(s) could not be attached (too large?). Please drop them into this chat.`)
+      .catch((e) => logger.debug('Reference fallback notice failed', { error: e.message }));
+    return null;
+  }
+}
+
+/** Post the client's files in their channel and remember the message, so Submit can forward them. */
+async function attachReferences(channel, ticket, files) {
+  const message = await postReferences(channel, files, referencesCaption(ticket.client_id));
+  if (!message) return;
+  const known = getTicketFields(ticket.id).find((f) => f.field_name === REFERENCE_MESSAGES_FIELD)?.field_value;
+  saveTicketField(ticket.id, REFERENCE_MESSAGES_FIELD, known ? `${known},${message.id}` : message.id);
+}
+
+/** Copy the reference files from the client's channel into the quote channel (fresh links on fetch). */
+async function forwardReferences(fromChannel, toChannel, ticketId) {
+  const ids = getTicketFields(ticketId).find((f) => f.field_name === REFERENCE_MESSAGES_FIELD)?.field_value;
+  if (!ids) return;
+  const files = [];
+  for (const id of ids.split(',')) {
+    const message = await fromChannel.messages.fetch(id).catch(() => null);
+    files.push(...(message?.attachments?.values() ?? []));
+  }
+  await postReferences(toChannel, files, referencesCaption(null, { forFreelancers: true }));
+}
+
+/**
+ * Post a fresh summary card in the ticket channel.
  * @param {import('discord.js').TextChannel} channel
  * @param {string} ticketId
  */
-export async function startOrderFlow(channel, ticketId) {
-  try {
-    await channel.send({
-      content: 'Click the button below to fill the order form (same style as Edit Order).',
-      components: [startOrderButtonRow(ticketId)],
-    });
-  } catch (err) {
-    logger.error('OrderFlow startOrderFlow failed', { ticketId, error: err.message });
-    throw err;
-  }
+export async function postOrderSummary(channel, ticketId) {
+  await channel.send(getOrderSummaryPayload(getTicketById(ticketId), getTicketFields(ticketId)));
 }
 
 /**
- * The form is complete once the ticket left the FORM stage (budget picked → OPEN).
- * Replaces counting rows in ticket_fields, which broke as soon as a field was added or left empty.
- * @param {string} ticketId
- * @returns {boolean}
+ * Answer a modal opened from the summary card by redrawing the card in place.
+ * A button on a message of the old form (classic, not V2) may refuse the edit — then a new
+ * card is posted instead.
  */
-export function isFormComplete(ticketId) {
-  return getTicketById(ticketId)?.status !== STATUS.FORM;
-}
-
-/**
- * Handle "Fill order form" button: show Modal 1 (5 fields). If form already complete (step >= 8), do not show modal.
- * @param {import('discord.js').ButtonInteraction} interaction
- * @param {string[]} parts - [ 'start_order', ticketId ]
- */
-export async function handleStartOrder(interaction, parts) {
-  const ticketId = parts[1];
-  if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (isFormComplete(ticketId)) {
-    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const fields = getTicketFields(ticketId);
-  const modal = buildOrderForm1Modal(ticketId, fields);
-  await interaction.showModal(modal);
-}
-
-/**
- * Handle Order form part 1 modal submit: save 5 fields, send "Continue" button for part 2.
- * @param {import('discord.js').ModalSubmitInteraction} interaction
- * @param {string[]} parts - [ 'order_form_1', ticketId ]
- */
-export async function handleOrderForm1Modal(interaction, parts) {
-  const ticketId = parts[1];
-  if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (isFormComplete(ticketId)) {
-    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  try {
-    let warning = '';
-    for (const key of EDIT_ORDER_MODAL_FIELDS) {
-      const value = interaction.fields.getTextInputValue(`field_${key}`)?.trim() || '';
-      saveTicketField(ticketId, key, value);
-      if (key === 'deadline') warning = deadlineWarning(value, updateTicketDeadline(ticketId, value));
-    }
-    await interaction.reply({
-      content: 'Part 1 saved. Click below to fill version and extra details.' + warning,
-      components: [orderForm2ButtonRow(ticketId)],
-    });
-  } catch (err) {
-    logger.error('Order form 1 modal failed', { ticketId, error: err.message });
-    await replyError(interaction, 'Failed to save.');
-  }
-}
-
-/**
- * Handle "Continue" button: show Modal 2 (version, extra_details). If form already complete (step >= 8), do not show modal.
- * @param {import('discord.js').ButtonInteraction} interaction
- * @param {string[]} parts - [ 'order_form_2', ticketId ]
- */
-export async function handleOrderForm2(interaction, parts) {
-  const ticketId = parts[1];
-  if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (isFormComplete(ticketId)) {
-    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  const fields = getTicketFields(ticketId);
-  const modal = buildOrderForm2Modal(ticketId, fields);
-  await interaction.showModal(modal);
-}
-
-/**
- * Handle Order form part 2 modal submit: save version + extra_details, send budget select in channel.
- * @param {import('discord.js').ModalSubmitInteraction} interaction
- * @param {string[]} parts - [ 'order_form_2_modal', ticketId ]
- */
-export async function handleOrderForm2Modal(interaction, parts) {
-  const ticketId = parts[1];
-  if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
-  if (isFormComplete(ticketId)) {
-    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
-    return;
-  }
-  try {
-    for (const key of ORDER_FORM_2_FIELDS) {
-      const value = interaction.fields.getTextInputValue(`field_${key}`)?.trim() || '';
-      saveTicketField(ticketId, key, value);
-    }
-    const ticket = getTicketById(ticketId);
-    const channel = ticket?.client_channel_id
-      ? await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null)
-      : null;
-    await interaction.reply({ content: 'Part 2 saved. Choose your budget below.', flags: MessageFlags.Ephemeral });
-    if (channel) {
-      await channel.send({
-        content: 'What is your budget?',
-        components: [orderBudgetSelectRow(ticketId)],
-      });
-    }
-  } catch (err) {
-    logger.error('Order form 2 modal failed', { ticketId, error: err.message });
-    await replyError(interaction, 'Failed to save.');
-  }
-}
-
-/**
- * Handle budget select (step 8): save budget, show the summary with Edit Order + Submit order.
- * The order stays in the FORM stage — freelancers see nothing until the client submits.
- * @param {import('discord.js').StringSelectMenuInteraction} interaction
- * @param {string[]} parts - [ 'order_budget', ticketId ]
- */
-export async function handleOrderBudgetSelect(interaction, parts) {
-  const ticketId = parts[1];
-  if (!ticketId) {
-    await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
-    return;
-  }
+async function showSummary(interaction, ticketId) {
   const ticket = getTicketById(ticketId);
-  if (!(await ensureTicketClient(interaction, ticket))) return;
-  if (ticket.status !== STATUS.FORM) {
-    await interaction.reply({ content: 'This order is already submitted.', flags: MessageFlags.Ephemeral });
+  const payload = getOrderSummaryPayload(ticket, getTicketFields(ticketId));
+  try {
+    await interaction.update(payload);
+  } catch (err) {
+    logger.info('Summary not editable in place, posting a new one', { ticketId, error: err.message });
+    await interaction.reply(ephemeral('✅ Saved.'));
+    const channel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
+    await channel?.send(payload);
+  }
+}
+
+/** After an edit of a submitted order: freelancers quote on what they see — show them the new brief. */
+async function afterBriefChanged(client, ticketId, files = []) {
+  const ticket = getTicketById(ticketId);
+  if (ticket.freelancer_channel_id) {
+    const quoteChannel = await client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
+    if (quoteChannel) {
+      await quoteChannel.send(orderBriefPayload(ticket, getTicketFields(ticketId), { updated: true }));
+      await postReferences(quoteChannel, files, referencesCaption(null, { forFreelancers: true }));
+    }
+  }
+  await refreshOrderCard(client, ticketId);
+}
+
+/** The order ticket of this interaction, if the clicker is its client and it is still editable; else answers. */
+async function editableOrder(interaction, ticketId) {
+  const ticket = ticketId ? getTicketById(ticketId) : undefined;
+  if (ticket?.type !== TICKET_TYPES.ORDER) {
+    await interaction.reply(ephemeral('Order not found.'));
+    return null;
+  }
+  // A modal is its own door: callers re-run this on submit, the check on the button does not carry over.
+  if (!(await ensureTicketClient(interaction, ticket))) return null;
+  if (!EDITABLE.includes(ticket.status)) {
+    await interaction.reply(ephemeral(EDIT_CLOSED_TEXT));
+    return null;
+  }
+  return ticket;
+}
+
+/**
+ * Panel Order button: open the order modal. Nothing is created yet — the ticket appears when
+ * the client submits the brief. Checks that would refuse the submit are done here first, so
+ * nobody types a brief just to lose it.
+ * @param {import('discord.js').ButtonInteraction} interaction
+ */
+export async function showNewOrderModal(interaction) {
+  if (!interaction.guild) {
+    await interaction.reply(ephemeral('This can only be used in a server.'));
     return;
   }
-  const value = interaction.values?.[0] || '';
-  if (!value) {
-    await interaction.reply({ content: 'Please select a budget.', flags: MessageFlags.Ephemeral });
+  if (!ticketCategoryId(interaction.guild.id, TICKET_TYPES.ORDER)) {
+    await interaction.reply(ephemeral(NOT_CONFIGURED_TEXT));
     return;
   }
-  saveTicketField(ticketId, ORDER_QUESTION_KEYS[7], value);
-  await interaction.update(getOrderSummaryPayload(getTicketFields(ticketId), ticketId, { submitted: false }));
-  logger.info('Order summary shown, waiting for submit', { ticketId });
+  if (isTicketCreateLimited(interaction.user.id)) {
+    await interaction.reply(ephemeral(RATE_LIMIT_TEXT));
+    return;
+  }
+  await interaction.showModal(buildOrderModal(null));
+}
+
+/**
+ * order_new modal submit: create the order ticket with the brief already in it.
+ * @param {import('discord.js').ModalSubmitInteraction} interaction
+ */
+export async function handleNewOrderModal(interaction) {
+  const guild = interaction.guild;
+  if (!guild || !ticketCategoryId(guild.id, TICKET_TYPES.ORDER)) {
+    await interaction.reply(ephemeral(NOT_CONFIGURED_TEXT));
+    return;
+  }
+  if (!tryConsumeTicketCreate(interaction.user.id)) {
+    await interaction.reply(ephemeral(RATE_LIMIT_TEXT));
+    return;
+  }
+  try {
+    // Channel + three posts: well over Discord's 3 seconds.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const user = { id: interaction.user.id, username: interaction.member?.user?.username || interaction.user.username };
+    const { channel, ticket } = await openTicketChannel(guild, user, TICKET_TYPES.ORDER);
+    const files = saveOrderModal(interaction, ticket.id);
+    await attachReferences(channel, ticket, files);
+    await postOrderSummary(channel, ticket.id);
+    await interaction.editReply({
+      content: `✅ Your order ticket is ready: <#${channel.id}>\nOne last step there: the Minecraft version and deadline, then **Submit order**.`,
+    });
+    logger.info('Order ticket created from the order modal', { ticketId: ticket.id, files: files.length });
+  } catch (err) {
+    logger.error('order_new failed', { userId: interaction.user.id, error: err.message });
+    await replyError(interaction, 'Failed to create the ticket. Please try again later.');
+  }
+}
+
+/**
+ * edit_order_modal:ticketId — the order modal from Edit order: save, add files, redraw the card.
+ * @param {import('discord.js').ModalSubmitInteraction} interaction
+ * @param {string[]} parts - [ 'edit_order_modal', ticketId ]
+ */
+export async function handleEditOrderModal(interaction, parts) {
+  const ticket = await editableOrder(interaction, parts[1]);
+  if (!ticket) return;
+  try {
+    const files = saveOrderModal(interaction, ticket.id);
+    await showSummary(interaction, ticket.id);
+    const channel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
+    if (channel) await attachReferences(channel, ticket, files);
+    if (ticket.status !== STATUS.FORM) await afterBriefChanged(interaction.client, ticket.id, files);
+    logger.info('Order edited', { ticketId: ticket.id });
+  } catch (err) {
+    logger.error('Edit order modal failed', { ticketId: ticket.id, error: err.message });
+    await replyError(interaction, 'Failed to update the order.');
+  }
+}
+
+/**
+ * order_finish:ticketId (and the old order_form_2) — open Version & deadline.
+ * @param {import('discord.js').ButtonInteraction} interaction
+ * @param {string[]} parts - [ 'order_finish', ticketId ]
+ */
+export async function handleOrderFinish(interaction, parts) {
+  const ticket = await editableOrder(interaction, parts[1]);
+  if (!ticket) return;
+  await interaction.showModal(buildOrderFinishModal(ticket.id, getTicketFields(ticket.id)));
+}
+
+/**
+ * order_finish_modal:ticketId — save version, deadline, extra details; redraw the card.
+ * @param {import('discord.js').ModalSubmitInteraction} interaction
+ * @param {string[]} parts - [ 'order_finish_modal', ticketId ]
+ */
+export async function handleOrderFinishModal(interaction, parts) {
+  const ticket = await editableOrder(interaction, parts[1]);
+  if (!ticket) return;
+  try {
+    saveTicketField(ticket.id, 'version', interaction.fields.getStringSelectValues('field_version')[0] ?? '');
+    for (const key of FINISH_MODAL_FIELDS) {
+      saveTicketField(ticket.id, key, interaction.fields.getTextInputValue(`field_${key}`)?.trim() || '');
+    }
+    const deadline = getTicketFields(ticket.id).find((f) => f.field_name === 'deadline')?.field_value ?? '';
+    const warning = deadlineWarning(deadline, updateTicketDeadline(ticket.id, deadline));
+    await showSummary(interaction, ticket.id);
+    if (warning) await interaction.followUp(ephemeral(warning.trim()));
+    if (ticket.status !== STATUS.FORM) await afterBriefChanged(interaction.client, ticket.id);
+  } catch (err) {
+    logger.error('order_finish_modal failed', { ticketId: ticket.id, error: err.message });
+    await replyError(interaction, 'Failed to save.');
+  }
 }
 
 /**
  * Handle Submit order (STEP 3 → 4): check required answers, form → open, quote channel now.
- * Replaces the old "quote channel 60 seconds after the summary" timer: the client decides when
- * the order is ready (owner's decision 2026-10-27).
+ * The client decides when the order is ready (owner's decision 2026-10-27).
  * @param {import('discord.js').ButtonInteraction} interaction
  * @param {string[]} parts - [ 'submit_order', ticketId ]
  */
@@ -215,22 +284,20 @@ export async function handleSubmitOrder(interaction, parts) {
   const ticketId = parts[1];
   const ticket = ticketId ? getTicketById(ticketId) : undefined;
   if (!(await ensureTicketClient(interaction, ticket))) return;
-  const fields = getTicketFields(ticketId);
-  const missing = missingOrderFields(fields);
+  const missing = missingOrderFields(getTicketFields(ticketId));
   if (missing.length) {
-    await interaction.reply({
-      content: `Please fill in before submitting: **${missing.join('**, **')}** — use **Edit Order** (or **Fill order form**).`,
-      flags: MessageFlags.Ephemeral,
-    });
+    await interaction.reply(
+      ephemeral(`Please fill in before submitting: **${missing.join('**, **')}** — use **Version & deadline** or **Edit order**.`)
+    );
     return;
   }
   // The transition is the gate: a double click finds the order already open.
   if (!transitionTicket(ticketId, STATUS.OPEN)) {
-    await interaction.reply({ content: 'This order is already submitted.', flags: MessageFlags.Ephemeral });
+    await interaction.reply(ephemeral('This order is already submitted.'));
     return;
   }
   try {
-    await interaction.update(getOrderSummaryPayload(fields, ticketId, { submitted: true }));
+    await interaction.update(getOrderSummaryPayload(getTicketById(ticketId), getTicketFields(ticketId)));
     await createQuoteChannelForTicket(interaction.client, ticketId);
     logger.info('Order submitted', { ticketId });
   } catch (err) {
@@ -242,7 +309,6 @@ export async function handleSubmitOrder(interaction, parts) {
 /**
  * Legacy: orders from before Submit order (≤ 2026-10-27) had a 60-second timer stored in
  * quote_channel_due_at. On startup, finish any that were still pending. New orders never set it.
- * On startup, re-arm any pending quote-channel timers that were lost on the last shutdown.
  * Overdue tickets are created immediately; others are rescheduled for their remaining time.
  * @param {import('discord.js').Client} client
  */
@@ -266,7 +332,8 @@ export function recoverPendingQuoteChannels(client) {
 }
 
 /**
- * Create quote channel in QUOTES category; post the order embed (with the client) and 3 buttons.
+ * Create quote channel in QUOTES category; post the brief (with the client), its buttons and
+ * the reference files.
  * @param {import('discord.js').Client} client
  * @param {string} ticketId
  */
@@ -304,11 +371,8 @@ export async function createQuoteChannelForTicket(client, ticketId) {
     });
     setFreelancerChannelId(ticketId, channel.id);
     setQuoteChannelDueAt(ticketId, null); // timer fulfilled — clear so recovery skips it
-    const fields = getTicketFields(ticketId);
-    await channel.send({
-      embeds: [orderSummaryEmbedForFreelancers(fields, ticket.client_id)],
-      components: freelancerActionButtonRows(ticketId),
-    });
+    await channel.send(orderBriefPayload(ticket, getTicketFields(ticketId)));
+    await forwardReferences(clientChannel, channel, ticketId);
     logger.info('Quote channel created', { ticketId, channelId: channel.id });
   } catch (err) {
     logger.error('createQuoteChannelForTicket failed', { ticketId, error: err.message });

@@ -20,16 +20,16 @@ export const PREFIX = {
   CREATE_TICKET: 'create_ticket',
   SELECT_TICKET_TYPE: 'select_ticket_type',
   CONFIRM_TICKET: 'confirm_ticket',
-  /** Order dialog: start form (button) — customId start_order:ticketId */
+  /** Panel Order button → this modal; submitting it creates the ticket — customId order_new */
+  ORDER_NEW_MODAL: 'order_new',
+  /** Summary card: Version & deadline button — customId order_finish:ticketId */
+  ORDER_FINISH: 'order_finish',
+  /** Version & deadline modal submit — customId order_finish_modal:ticketId */
+  ORDER_FINISH_MODAL: 'order_finish_modal',
+  /** Legacy (before 2026-10-26): "Fill order form" button in old tickets — now opens the order modal */
   START_ORDER: 'start_order',
-  /** Order form part 1 modal submit (5 fields) — customId order_form_1:ticketId */
-  ORDER_FORM_1: 'order_form_1',
-  /** Order form part 2 button — customId order_form_2:ticketId */
+  /** Legacy: "Continue — version & details" button in old tickets — now opens Version & deadline */
   ORDER_FORM_2: 'order_form_2',
-  /** Order form part 2 modal submit (version, extra_details) — customId order_form_2_modal:ticketId */
-  ORDER_FORM_2_MODAL: 'order_form_2_modal',
-  /** Order dialog: budget select menu — customId order_budget:ticketId */
-  ORDER_BUDGET: 'order_budget',
   /** Submit Order button (under summary, before freelancers see the order) — customId submit_order:ticketId */
   SUBMIT_ORDER: 'submit_order',
   /** Edit Order button (under summary) — customId edit_order:ticketId */
@@ -108,24 +108,36 @@ export const FORM_CLOSE_AFTER_REMIND_MS = 24 * 60 * 60 * 1000;
 /** How often the cleanup job looks for channels due for deletion. */
 export const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
 
-/** Order dialog: question labels (field names in ticket_fields). Step 8 = budget (Select Menu). */
-export const ORDER_QUESTION_KEYS = [
-  'need',           // 1. What are you in need of?
-  'deadline',       // 2. When is the deadline?
-  'reference_urls', // 3. Do you have any reference images? (URLs)
-  'size',           // 4. What size would you like your build to be?
-  'theme',          // 5. What theme would you like your build to be?
-  'version',        // 6. What version do you want your product in?
-  'extra_details',  // 7. Would you like to add any more details?
-  'budget',         // 8. What is your budget? (Select Menu)
+/**
+ * Order answers (field names in ticket_fields). Asked in two modals: the order modal from the
+ * panel (need, size, theme, budget + reference files) and Version & deadline in the ticket.
+ * reference_urls is legacy (text links from the old form) — still shown when present.
+ */
+export const ORDER_FIELDS = ['need', 'size', 'theme', 'budget', 'version', 'deadline', 'extra_details', 'reference_urls'];
+
+/** Answers an order needs before it can be submitted. Budget is optional since the order modal
+ *  (owner's decision 2026-10-26: "Budget and timeframe — leave empty if you don't know yet"). */
+export const REQUIRED_ORDER_FIELDS = ['need', 'size', 'theme', 'version', 'deadline'];
+
+/** Ids of the client-channel messages holding the reference files (comma-separated), in ticket_fields. */
+export const REFERENCE_MESSAGES_FIELD = 'reference_msgs';
+
+/** Up to this many reference files per order modal (Discord allows 10). */
+export const MAX_REFERENCE_FILES = 10;
+
+/** Minecraft version choices (select in the Version & deadline modal). Values are stored. */
+export const MINECRAFT_VERSIONS = [
+  { label: 'Java 1.21 (latest)', value: '1.21' },
+  { label: 'Java 1.20', value: '1.20' },
+  { label: 'Java 1.16 – 1.19', value: '1.16-1.19' },
+  { label: 'Java 1.13 – 1.15', value: '1.13-1.15' },
+  { label: 'Java 1.12 or older', value: '1.12-' },
+  { label: 'Bedrock', value: 'bedrock' },
+  { label: 'Not sure yet', value: 'not sure' },
 ];
 
-/** Answers an order needs before it can be submitted to freelancers (owner's decision 2026-10-27). */
-export const REQUIRED_ORDER_FIELDS = ['need', 'deadline', 'size', 'theme', 'version', 'budget'];
-
-/** Budget options for order dialog step 8 (Select Menu values). */
-// Euros, same currency as soucampus.online (owner's decision 2026-10-25). Values are unchanged,
-// so budgets already saved in ticket_fields keep meaning the same ranges.
+/** Budget ranges of the old budget menu: stored values of orders before 2026-10-26 → labels. */
+// Euros, same currency as soucampus.online (owner's decision 2026-10-25).
 export const ORDER_BUDGET_OPTIONS = [
   { label: '<€100', value: '<100' },
   { label: '€100–€500', value: '100-500' },

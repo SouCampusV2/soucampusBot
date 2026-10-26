@@ -4,10 +4,14 @@ import { setSetting } from './helpers/db.js';
 import { fakeGuild, fakeMember, fakeClient, fakeInteraction, finalText } from './helpers/fakes.js';
 import { handleCreateTicket } from '../src/interactions/handlers/createTicket.js';
 import { handleSetupCommand } from '../src/commands/setupCommand.js';
+import { handleNewOrderModal } from '../src/modules/tickets/flows/OrderFlow.js';
+
+const BRIEF = { field_need: 'A spawn', field_size: '100x100', field_theme: 'Medieval', field_budget: '' };
 
 async function open(guild, type) {
-  const i = fakeInteraction({ client: fakeClient(), member: fakeMember(guild), guild });
-  await handleCreateTicket(i, ['create_ticket', type]);
+  const i = fakeInteraction({ client: fakeClient(), member: fakeMember(guild), guild, fields: BRIEF });
+  // Orders are created by submitting the order modal; the other types by the panel button.
+  await (type === 'order' ? handleNewOrderModal(i) : handleCreateTicket(i, ['create_ticket', type]));
   return guild.createdChannels.at(-1);
 }
 

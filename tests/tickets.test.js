@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PermissionFlagsBits } from 'discord.js';
 import { setSetting } from './helpers/db.js';
-import { fakeGuild, fakeMember, fakeRole, fakeClient, fakeInteraction, answerKind, finalText } from './helpers/fakes.js';
+import { MessageFlags } from 'discord.js';
+import { fakeGuild, fakeMember, fakeRole, fakeClient, fakeInteraction, answerKind, finalText, customIds, payloadText } from './helpers/fakes.js';
 import { handleConfirmTicket } from '../src/interactions/handlers/confirmTicket.js';
 import { getTicketByClientChannelId } from '../src/modules/tickets/TicketRepository.js';
 
-test('Confirm creates a private order channel and answers through defer + editReply', async () => {
+test('Confirm creates a private ticket channel and answers through defer + editReply', async () => {
   const staff = fakeRole('Staff');
   const guild = fakeGuild({ id: 'g-ticket-create', roles: [staff] });
   setSetting(guild.id, 'category_active_orders', 'orders-cat');
@@ -14,13 +15,13 @@ test('Confirm creates a private order channel and answers through defer + editRe
   const client = fakeMember(guild, { name: 'Alice' });
   const i = fakeInteraction({ client: fakeClient(), member: client, guild });
 
-  await handleConfirmTicket(i, ['confirm_ticket', 'order']);
+  await handleConfirmTicket(i, ['confirm_ticket', 'help']);
 
   assert.equal(answerKind(i), 'deferUpdate');
-  assert.match(finalText(i), /Ticket created/);
+  assert.match(finalText(i), /ticket is ready/);
 
   const [channel] = guild.createdChannels;
-  assert.equal(channel.name, 'order-alice');
+  assert.match(channel.name, /alice/);
   assert.equal(channel.parentId, 'orders-cat');
   const overwrites = channel.permissionOverwritesOnCreate;
   assert.ok(overwrites.some((o) => o.id === guild.id && o.deny === PermissionFlagsBits.ViewChannel), 'hidden from @everyone');
@@ -29,7 +30,20 @@ test('Confirm creates a private order channel and answers through defer + editRe
 
   const ticket = getTicketByClientChannelId(channel.id);
   assert.equal(ticket.client_id, client.id);
-  assert.equal(channel.sent.length, 2, 'welcome message + Fill order form button');
+  assert.equal(channel.sent.length, 1, 'one welcome card');
+  const [welcome] = channel.sent;
+  assert.equal(welcome.flags, MessageFlags.IsComponentsV2);
+  assert.match(payloadText(welcome), new RegExp(`<@${client.id}>`), 'the card greets the client by mention');
+  assert.deepEqual(customIds(welcome), [`close_ticket:${ticket.id}`]);
+});
+
+test('an order from the old type menu opens the order modal instead of an empty ticket', async () => {
+  const guild = fakeGuild({ id: 'g-ticket-menu-order' });
+  setSetting(guild.id, 'category_active_orders', 'orders-cat');
+  const i = fakeInteraction({ client: fakeClient(), member: fakeMember(guild), guild });
+  await handleConfirmTicket(i, ['confirm_ticket', 'order']);
+  assert.equal(answerKind(i), 'showModal');
+  assert.equal(guild.createdChannels.length, 0);
 });
 
 test('an unknown ticket type in the customId is refused', async () => {

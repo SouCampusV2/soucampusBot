@@ -51,6 +51,7 @@ import { attachOrderCard } from './OrderCard.js';
 import { attachStaffLog } from './StaffLog.js';
 import { attachTranscripts } from './Transcript.js';
 import { handleSiteConsent } from '../site/consent.js';
+import { attachShowcaseReactions } from '../site/showcaseReactions.js';
 import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
 import { recoverPendingQuoteChannels, handleSubmitOrder } from './flows/OrderFlow.js';
@@ -149,6 +150,7 @@ export function registerTicketModule(client) {
   attachOrderCard(client);
   attachStaffLog(client);
   attachTranscripts(client);
+  attachShowcaseReactions(client);
 
   client.once(Events.ClientReady, async () => {
     postLegacyPanel(client);

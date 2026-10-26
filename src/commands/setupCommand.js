@@ -23,6 +23,7 @@ import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } f
 import { setSetting, getGuildConfig } from '../core/GuildConfig.js';
 import { upsertPanel } from '../utils/panel.js';
 import { ensureShowcaseWebhook } from '../modules/site/showcaseWebhook.js';
+import { parseReactionList } from '../modules/site/showcaseReactions.js';
 import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
 
@@ -73,6 +74,9 @@ export const setupCommandData = new SlashCommandBuilder()
       .addStringOption((o) => o.setName('terms').setDescription('Terms page (https://…)'))
       .addStringOption((o) => o.setName('privacy').setDescription('Privacy page (https://…)'))
       .addStringOption((o) => o.setName('banner').setDescription('Banner image on top of the panel (https://…)')))
+  .addSubcommand((s) =>
+    s.setName('showcase_reactions').setDescription('Reactions the bot adds under every showcase post')
+      .addStringOption((o) => o.setName('emojis').setDescription('Up to 10 emoji, space-separated (empty = none)').setRequired(false)))
   .addSubcommand((s) => s.setName('view').setDescription('Show current configuration'))
   .toJSON();
 
@@ -119,12 +123,31 @@ export async function handleSetupCommand(interaction) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const webhook = await ensureShowcaseWebhook(channel, interaction.client.user.id, { rotate });
         setSetting(guildId, 'channel_showcase', channel.id);
+        // Remembered so the bot reacts only to posts of THIS webhook (showcaseReactions.js).
+        setSetting(guildId, 'showcase_webhook_id', webhook.id);
         await interaction.editReply({
           content:
             `✅ The website will post portfolio works in <#${channel.id}>.\n` +
             'Put this link into the site’s environment as **DISCORD_SHOWCASE_WEBHOOK_URL** (Vercel → Settings → Environment Variables):\n' +
             `||${webhook.url}||\n` +
             '⚠️ Treat it like a password: anyone with it can post in that channel. Leaked? Run this again with `new_link: true`.',
+        });
+        return;
+      }
+      case 'showcase_reactions': {
+        const text = interaction.options.getString('emojis')?.trim() ?? '';
+        const list = parseReactionList(text);
+        if (!list) {
+          await interaction.reply({
+            content: 'Give up to 10 emoji separated by spaces — normal ones (🔥) or this server’s (:name:). Empty = no reactions.',
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+        setSetting(guildId, 'showcase_reactions', list.join(' '));
+        await interaction.reply({
+          content: list.length ? `✅ New showcase posts will get: ${list.join(' ')}` : '✅ Showcase posts will get no reactions.',
+          flags: MessageFlags.Ephemeral,
         });
         return;
       }
@@ -202,6 +225,7 @@ export async function handleSetupCommand(interaction) {
           line('Panel channel', cfg.channel_panel, 'channel'),
           line('Staff log channel', cfg.channel_log, 'channel'),
           line('Showcase channel', cfg.channel_showcase, 'channel'),
+          line('Showcase reactions', cfg.showcase_reactions, 'text'),
           line('Terms link', cfg.terms_url, 'text'),
           line('Privacy link', cfg.privacy_url, 'text'),
           line('Panel banner', cfg.panel_banner_url, 'text'),

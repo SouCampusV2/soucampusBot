@@ -27,7 +27,8 @@ export function getBot(options = {}) {
     //   apply. Must also be ON in the Developer Portal, or login fails with "disallowed intents".
     // GuildMembers is NOT requested: role checks use interaction.member, names come from
     //   guild.members.fetch(id), a plain REST call.
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.MessageContent],
+    // GuildMessages (not privileged): see new showcase posts to add reactions (showcaseReactions.js).
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
   });
 
   // Without an 'error' listener, Node turns an emitted 'error' (e.g. a gateway hiccup) into a crash.

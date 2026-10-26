@@ -36,6 +36,10 @@ confirmed by a manager → delivery → review.**
   event bus that features subscribe to; safe against double clicks
 - Works on several servers at once; each server is configured with `/setup`
 - `/invite @user` for managers
+- Server rules as a card (`/setup rules`, edited in place) and `/rules` for anyone
+- Website → Discord: `/setup site_channel` gives the site a webhook for each
+  channel it posts to (portfolio, premade, free builds, announcements); the bot
+  reacts under build posts
 
 Status of every feature: [`docs/SPEC.md`](docs/SPEC.md). Plan:
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
@@ -74,7 +78,7 @@ npm run check   # syntax check of every file
 src/core/                     client, database, per-server config, interaction router
 src/modules/tickets/          ticket module, repository, order flow
 src/interactions/handlers/    one file per button / modal
-src/commands/                 /setup, /invite
+src/commands/                 /setup, /invite, /orders, /stats, /rules
 src/embeds/templates.js       all embeds, buttons and modals
 database/schema.sql           schema for a fresh database
 tests/                        node:test suites + fakes of discord.js objects

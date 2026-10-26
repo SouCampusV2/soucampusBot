@@ -53,6 +53,7 @@
    - `/setup color #F97316` — оранжевый сайта для всех карточек бота;
    - `/setup rules channel:#🌸rules image:https://…` — карточка правил
      (старое сообщение-эмбед в #rules удалить руками);
+   - ✅ 27.10: `/setup color`, `/setup rules`, все 4 вебхука в Vercel.
    - `/setup site_channel` четыре раза — kind Portfolio → #🌸portfolio,
      Premade builds → #🌸premade-builds, Free builds → #🌸free-builds,
      Announcements → #🌸announcements. Каждая ссылка из ответа → Vercel

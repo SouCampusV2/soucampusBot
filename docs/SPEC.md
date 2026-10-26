@@ -110,9 +110,15 @@ Styles / specialty, Timezone, Portfolio links; обязательны «о се�
 
 ## Цикл заказа
 
-### Шаг 1 — Вход 🟢
-Панель с кнопкой **Create Ticket** → меню типа (Help / Team Application /
-Order) → кнопка **Confirm — <тип>** → канал `order-`/`help-`/`apply-<username>`
+### Шаг 1 — Вход 🟡
+**Панель** (Components V2, как у других студий): баннер (по желанию,
+`/setup links banner`), кто мы, три блока со своей кнопкой — 🧱 **Order a
+build** (с ценой-ориентиром), ❓ **Support**, 📝 **Join the team**; внизу
+строка про условия и транскрипт и кнопки-ссылки Website / Portfolio / Terms /
+Privacy (`/setup links terms privacy`; по умолчанию `/terms` и `/privacy`
+сайта). Кнопка блока сразу открывает тикет этого типа. `/setup panel`
+обновляет нашу панель на месте. Старая панель с одной кнопкой «Create Ticket»
+→ меню типа → **Confirm — <тип>** — работает как раньше. Итог в обоих случаях: канал `order-`/`help-`/`apply-<username>`
 в категории active_orders, видят клиент и менеджеры. Лимит: один тикет в 60 секунд.
 
 ### Шаг 2 — Форма заказа 🟢

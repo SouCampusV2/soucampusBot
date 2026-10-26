@@ -25,15 +25,20 @@
    swapon --show
    ```
    До запуска сканера не горит: сейчас занято ~0.9 ГБ из 4.
-5. **Витрина:** в Discord `/setup showcase_channel #канал` → ссылку из ответа в
+5. **Страница условий для Discord на сайте** — в той же сессии по сайту
+   (текст: `docs/phase4/site/content/discord-terms-and-privacy.md`, вычитать
+   места в «[…]»). После деплоя в Discord:
+   `/setup links terms:https://soucampus.online/terms/discord privacy:https://soucampus.online/privacy#discord`
+   и `/setup panel`. До этого панель ведёт на общие `/terms` и `/privacy`.
+6. **Витрина:** в Discord `/setup showcase_channel #канал` → ссылку из ответа в
    Vercel как `DISCORD_SHOWCASE_WEBHOOK_URL` (вместе с остальным по
    `docs/phase4/site/README.md`).
-6. **Фаза 4 — включить мост на сайт** (когда будет сессия по сайту):
+7. **Фаза 4 — включить мост на сайт** (когда будет сессия по сайту):
    `docs/phase4/site/README.md` → «Порядок». Коротко: секрет → Vercel и
    `.env` на VPS (`SITE_BRIDGE_URL`, `SITE_BRIDGE_SECRET`); миграция preview →
    прод; файлы в сайт. До этого согласия клиентов копятся в очереди бота —
    ничего не теряется.
-7. ⚠️ **Не запускать бота локально (`npm start`)**, пока он работает на VPS:
+8. ⚠️ **Не запускать бота локально (`npm start`)**, пока он работает на VPS:
    один токен — один процесс, иначе каждое нажатие выполнится дважды
    (`docs/DEPLOY.md`).
 

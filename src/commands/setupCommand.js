@@ -10,7 +10,8 @@
  *   /setup manager_role    <role>       — the Manager role
  *   /setup freelancer_role <role>       — the Freelancer role
  *   /setup color           <hex>        — brand color for embeds (e.g. #5865F2)
- *   /setup panel           [channel]    — post the ticket panel (defaults to current channel)
+ *   /setup panel           [channel]    — post the ticket panel, or update ours in place
+ *   /setup links [terms] [privacy] [banner] — legal links and banner on the panel
  *   /setup log_channel     <channel>    — staff log: one line per ticket event
  *   /setup showcase_channel <channel> [new_link] — webhook the website posts portfolio works through
  *   /setup view                          — show current configuration
@@ -18,7 +19,7 @@
 
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { setSetting, getGuildConfig } from '../core/GuildConfig.js';
-import { getTicketPanelPayload } from '../embeds/templates.js';
+import { upsertPanel } from '../utils/panel.js';
 import { ensureShowcaseWebhook } from '../modules/site/showcaseWebhook.js';
 import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
@@ -59,6 +60,11 @@ export const setupCommandData = new SlashCommandBuilder()
     s.setName('showcase_channel').setDescription('Channel the website posts portfolio works to (gives a webhook link)')
       .addChannelOption((o) => o.setName('channel').setDescription('Text channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
       .addBooleanOption((o) => o.setName('new_link').setDescription('Issue a new link; the old one stops working')))
+  .addSubcommand((s) =>
+    s.setName('links').setDescription('Links and banner on the ticket panel')
+      .addStringOption((o) => o.setName('terms').setDescription('Terms page (https://…)'))
+      .addStringOption((o) => o.setName('privacy').setDescription('Privacy page (https://…)'))
+      .addStringOption((o) => o.setName('banner').setDescription('Banner image on top of the panel (https://…)')))
   .addSubcommand((s) => s.setName('view').setDescription('Show current configuration'))
   .toJSON();
 
@@ -135,9 +141,31 @@ export async function handleSetupCommand(interaction) {
       }
       case 'panel': {
         const channel = interaction.options.getChannel('channel') || interaction.channel;
-        await channel.send(getTicketPanelPayload(guildId));
+        // Answer first: posting/editing the panel can exceed Discord's 3 seconds (it did, 26.10).
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const result = await upsertPanel(channel, interaction.client.user.id);
         setSetting(guildId, 'channel_panel', channel.id);
-        await interaction.reply({ content: `✅ Ticket panel posted in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
+        await interaction.editReply({
+          content: result === 'updated' ? `✅ Ticket panel updated in <#${channel.id}>.` : `✅ Ticket panel posted in <#${channel.id}>.`,
+        });
+        return;
+      }
+      case 'links': {
+        const changes = { terms: 'terms_url', privacy: 'privacy_url', banner: 'panel_banner_url' };
+        const given = Object.entries(changes).filter(([option]) => interaction.options.getString(option));
+        for (const [option] of given) {
+          if (!/^https:\/\//.test(interaction.options.getString(option).trim())) {
+            await interaction.reply({ content: `**${option}** must be an https:// link.`, flags: MessageFlags.Ephemeral });
+            return;
+          }
+        }
+        for (const [option, key] of given) setSetting(guildId, key, interaction.options.getString(option).trim());
+        await interaction.reply({
+          content: given.length
+            ? `✅ Saved: ${given.map(([o]) => o).join(', ')}. Run \`/setup panel\` to refresh the panel.`
+            : 'Give at least one of: terms, privacy, banner.',
+          flags: MessageFlags.Ephemeral,
+        });
         return;
       }
       case 'view': {
@@ -156,6 +184,9 @@ export async function handleSetupCommand(interaction) {
           line('Panel channel', cfg.channel_panel, 'channel'),
           line('Staff log channel', cfg.channel_log, 'channel'),
           line('Showcase channel', cfg.channel_showcase, 'channel'),
+          line('Terms link', cfg.terms_url, 'text'),
+          line('Privacy link', cfg.privacy_url, 'text'),
+          line('Panel banner', cfg.panel_banner_url, 'text'),
           line('Manager role', cfg.role_manager, 'role'),
           line('Freelancer role', cfg.role_freelancer, 'role'),
           line('Brand color', cfg.brand_color, 'text'),

@@ -91,6 +91,9 @@ CREATE TABLE IF NOT EXISTS guild_config (
   brand_color TEXT,
   channel_log TEXT,
   channel_showcase TEXT,
+  terms_url TEXT,
+  privacy_url TEXT,
+  panel_banner_url TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

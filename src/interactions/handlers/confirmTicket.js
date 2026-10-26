@@ -21,7 +21,11 @@ const TYPE_LABELS = {
   application: 'Team Application',
 };
 
-export async function handleConfirmTicket(interaction, parts) {
+/**
+ * @param {{ fresh?: boolean }} [options] - fresh: answer with a new ephemeral message (panel button)
+ *   instead of updating the message the button is on (the confirm step of the old menu).
+ */
+export async function handleConfirmTicket(interaction, parts, { fresh = false } = {}) {
   const type = parts[1];
   if (!Object.values(TICKET_TYPES).includes(type)) {
     await interaction.reply({ content: 'Missing ticket type.', flags: MessageFlags.Ephemeral });
@@ -59,7 +63,7 @@ export async function handleConfirmTicket(interaction, parts) {
 
   try {
     // Creating a channel and posting into it can take longer than Discord's 3-second answer window.
-    await interaction.deferUpdate();
+    await (fresh ? interaction.deferReply({ flags: MessageFlags.Ephemeral }) : interaction.deferUpdate());
     const managerRole = getManagerRole(guild);
     const overwrites = [
       { id: guild.id, deny: PermissionFlagsBits.ViewChannel },

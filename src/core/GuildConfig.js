@@ -25,6 +25,9 @@ export const SETTINGS = {
   brand_color: { column: 'brand_color', env: 'BRAND_COLOR' },
   channel_log: { column: 'channel_log', env: 'CHANNEL_LOG' },
   channel_showcase: { column: 'channel_showcase', env: 'CHANNEL_SHOWCASE' },
+  terms_url: { column: 'terms_url', env: 'TERMS_URL' },
+  privacy_url: { column: 'privacy_url', env: 'PRIVACY_URL' },
+  panel_banner_url: { column: 'panel_banner_url', env: 'PANEL_BANNER_URL' },
 };
 
 /** In-memory cache: guildId -> config row. Invalidated on write. */

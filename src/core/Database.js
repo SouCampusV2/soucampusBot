@@ -77,6 +77,12 @@ function runMigrations(db) {
   ).run();
 
   const guildColumns = db.prepare('PRAGMA table_info(guild_config)').all().map((c) => c.name);
+  for (const column of ['terms_url', 'privacy_url', 'panel_banner_url']) {
+    if (!guildColumns.includes(column)) {
+      db.exec(`ALTER TABLE guild_config ADD COLUMN ${column} TEXT`);
+      logger.info('Migration: added column', { table: 'guild_config', column });
+    }
+  }
   if (!guildColumns.includes('channel_showcase')) {
     db.exec('ALTER TABLE guild_config ADD COLUMN channel_showcase TEXT');
     logger.info('Migration: added column', { table: 'guild_config', column: 'channel_showcase' });

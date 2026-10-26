@@ -3,6 +3,14 @@
  */
 
 import {
+  ContainerBuilder,
+  MediaGalleryBuilder,
+  MediaGalleryItemBuilder,
+  MessageFlags,
+  SectionBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  TextDisplayBuilder,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
@@ -29,32 +37,6 @@ function brandColor(guildId) {
   if (!hex) return EMBED_COLOR;
   const parsed = parseInt(hex.replace('#', ''), 16);
   return Number.isFinite(parsed) ? parsed : EMBED_COLOR;
-}
-
-/**
- * Ticket panel embed (post in CHANNEL_TICKET_PANEL).
- * @returns {EmbedBuilder}
- */
-export function ticketPanelEmbed(guildId) {
-  return new EmbedBuilder()
-    .setColor(brandColor(guildId))
-    .setTitle('Create a ticket')
-    .setDescription(
-      'Click the button below to open a ticket. Choose **Help**, **Team Application**, or **Order**.'
-    )
-    .setTimestamp();
-}
-
-/**
- * Create Ticket button (customId: create_ticket).
- * @returns {ActionRowBuilder<ButtonBuilder>}
- */
-export function createTicketButtonRow() {
-  const button = new ButtonBuilder()
-    .setCustomId(PREFIX.CREATE_TICKET)
-    .setLabel('Create Ticket')
-    .setStyle(ButtonStyle.Primary);
-  return new ActionRowBuilder().addComponents(button);
 }
 
 /**
@@ -95,15 +77,80 @@ export function confirmTicketButtonRow(type) {
   return new ActionRowBuilder().addComponents(button);
 }
 
+/** Site links on the panel. Legal pages are settings (/setup links): until the site has its
+ *  Discord terms page, the general /terms and /privacy are the honest defaults. */
+const SITE_URL = 'https://soucampus.online';
+const DEFAULT_TERMS_URL = `${SITE_URL}/terms`;
+const DEFAULT_PRIVACY_URL = `${SITE_URL}/privacy`;
+
+/** One panel section: text on the left, its own button on the right. */
+function panelSection(text, customId, label, style) {
+  return new SectionBuilder()
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(text))
+    .setButtonAccessory(new ButtonBuilder().setCustomId(customId).setLabel(label).setStyle(style));
+}
+
 /**
- * Full ticket panel components (embed + button) for posting in channel.
- * @returns {{ embeds: EmbedBuilder[], components: ActionRowBuilder[] }}
+ * The ticket panel — a Components V2 card (like the panels of other build studios):
+ * optional banner, who we are, one section per ticket type with its own button (the button
+ * opens that ticket straight away), legal note, link buttons. Edited in place by /setup panel.
+ * @param {string} guildId
+ * @param {{ guildName?: string }} [options]
  */
-export function getTicketPanelPayload(guildId) {
-  return {
-    embeds: [ticketPanelEmbed(guildId)],
-    components: [createTicketButtonRow()],
-  };
+export function getTicketPanelPayload(guildId, { guildName } = {}) {
+  const terms = getSetting(guildId, 'terms_url') || DEFAULT_TERMS_URL;
+  const privacy = getSetting(guildId, 'privacy_url') || DEFAULT_PRIVACY_URL;
+  const banner = getSetting(guildId, 'panel_banner_url');
+
+  const card = new ContainerBuilder().setAccentColor(brandColor(guildId));
+  if (banner) card.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(banner)));
+  card
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        `# ${guildName || 'SouCampus Builds'}\n` +
+          'Custom Minecraft maps for your server — spawns, hubs, arenas, RPG worlds and more.\n' +
+          'Pick what you need below: a private ticket opens just for you and our team.'
+      )
+    )
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large))
+    .addSectionComponents(
+      panelSection(
+        '### 🧱 Order a build\n' +
+          'Fill a short form and get a price guide right away — about **€1.5 per block of map side** ' +
+          '(150×150 ≈ €225). Builders send their quotes, you pick one.',
+        `${PREFIX.CREATE_TICKET}:${TICKET_TYPES.ORDER}`,
+        'Start my project',
+        ButtonStyle.Success
+      ),
+      panelSection(
+        '### ❓ Support\nQuestions about an order, a map you bought, or anything else — we answer here.',
+        `${PREFIX.CREATE_TICKET}:${TICKET_TYPES.HELP}`,
+        'Get support',
+        ButtonStyle.Secondary
+      ),
+      panelSection(
+        '### 📝 Join the team\nYou build? Show your portfolio and apply to take orders with us.',
+        `${PREFIX.CREATE_TICKET}:${TICKET_TYPES.APPLICATION}`,
+        'Apply',
+        ButtonStyle.Secondary
+      )
+    )
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        '-# By opening a ticket you agree to our Terms. When a ticket closes, its conversation is saved ' +
+          'as a transcript and sent to you; the channel is deleted after 48 hours.'
+      )
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(SITE_URL).setLabel('Website'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(`${SITE_URL}/portfolio`).setLabel('Portfolio'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(terms).setLabel('Terms'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(privacy).setLabel('Privacy')
+      )
+    );
+  return { components: [card], flags: MessageFlags.IsComponentsV2 };
 }
 
 // --- Order dialog (STEP 2 & 3) ---

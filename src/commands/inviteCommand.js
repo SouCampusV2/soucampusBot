@@ -39,11 +39,13 @@ export async function handleInviteCommand(interaction) {
     return;
   }
   try {
+    // Answer first: the permission edit is a round-trip to Discord (3-second rule).
+    await interaction.deferReply();
     await channel.permissionOverwrites.edit(user.id, {
       ViewChannel: true,
       SendMessages: true,
     });
-    await interaction.reply({
+    await interaction.editReply({
       content: `✅ <@${user.id}> has been invited to this ticket.`,
     });
     logger.info('User invited to ticket', { ticketId: ticket.id, channelId: channel.id, userId: user.id });

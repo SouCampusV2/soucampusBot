@@ -157,6 +157,7 @@ handler(interaction, parts)
 | Действие | Кто может | Где проверка | Статус |
 |---|---|---|---|
 | Принять / отклонить квоту, тред | клиент | `ticket.client_id` | 🟢 |
+| Читать канал клиента до выбора | билдер, которому клиент нажал Contact freelancer (только чтение + ветки) | `contactFreelancer.js` | 🟡 тест есть |
 | Отзыв | клиент, заказ завершён, один раз | `submitReview(Modal).js` + `getReviewByTicketId` | 🟡 тест есть, Discord — нет |
 | Закрыть тикет | менеджер всегда; владелец — по стадии | `closeRefusal` + `transitionTicket(CLOSED)` | 🟡 тест есть |
 | Keep archived | менеджер | `isManagerOrAdmin` | 🟡 тест есть |

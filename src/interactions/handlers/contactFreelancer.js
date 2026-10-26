@@ -9,6 +9,12 @@ import { closeDiscussionButtonRow, ticketLabel } from '../../embeds/templates.js
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
+function addBuilder(thread, freelancerId, ticketId) {
+  return thread.members.add(freelancerId).catch((err) =>
+    logger.warn('contact_freelancer: could not add freelancer to thread', { ticketId, error: err.message })
+  );
+}
+
 export async function handleContactFreelancer(interaction, parts) {
   const ticketId = parts[1];
   const freelancerId = parts[2];
@@ -35,11 +41,22 @@ export async function handleContactFreelancer(interaction, parts) {
   try {
     // Thread creation + adding a member + a message: can exceed the 3-second answer window.
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    // Discord adds to a private thread only people who can see its parent channel ("Missing
+    // Access" otherwise, live 26.10). So the builder may READ the ticket (owner's choice 27.10:
+    // quotes and other conversations included) but writes only in threads.
+    await clientChannel.permissionOverwrites.edit(freelancerId, {
+      ViewChannel: true,
+      ReadMessageHistory: true,
+      SendMessages: false,
+      SendMessagesInThreads: true,
+    });
     // One thread per builder: a second press leads to the one already open.
     const threadId = findBuilderThreadId(ticketId, freelancerId);
     const existing = threadId ? await interaction.client.channels.fetch(threadId).catch(() => null) : null;
     if (existing) {
       if (existing.archived) await existing.setArchived(false);
+      // Threads made before the access fix are missing the builder — add again (no-op if in).
+      await addBuilder(existing, freelancerId, ticketId);
       await interaction.editReply({ content: `Your thread with this builder: <#${existing.id}>` });
       return;
     }
@@ -49,9 +66,7 @@ export async function handleContactFreelancer(interaction, parts) {
       type: ChannelType.PrivateThread,
       reason: 'Discussion with freelancer',
     });
-    await thread.members.add(freelancerId).catch((err) =>
-      logger.warn('contact_freelancer: could not add freelancer to thread', { ticketId, error: err.message })
-    );
+    await addBuilder(thread, freelancerId, ticketId);
     const row = closeDiscussionButtonRow(ticketId, thread.id);
     await thread.send({
       content:

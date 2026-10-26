@@ -144,6 +144,36 @@ test('Open private thread: only the client, and one thread per builder', async (
   assert.equal(created, 1, 'the second press leads to the same thread');
 });
 
+test('Open private thread: the builder can read the ticket first, so Discord lets them into the thread', async () => {
+  const s = setup('g-conv-thread-access');
+  const order = [];
+  const thread = {
+    id: 'thread-2',
+    archived: false,
+    members: { add: async (id) => order.push(`add:${id}`) },
+    send: async () => {},
+  };
+  s.clientChannel.threads = { create: async () => thread };
+  const edit = s.clientChannel.permissionOverwrites.edit;
+  s.clientChannel.permissionOverwrites.edit = async (target, perms) => {
+    order.push(`perm:${target}`);
+    return edit(target, perms);
+  };
+  s.discord.channels.fetch = async (id) => ({ [s.clientChannel.id]: s.clientChannel, 'thread-2': thread })[id] ?? null;
+
+  await handleContactFreelancer(as(s, s.client), ['contact_freelancer', s.ticketId, s.bob.id]);
+  assert.deepEqual(order, [`perm:${s.bob.id}`, `add:${s.bob.id}`], 'access before adding (Discord: Missing Access otherwise)');
+  const grant = s.clientChannel.overwrites.find((o) => o.target === s.bob.id).perms;
+  assert.equal(grant.ViewChannel, true);
+  assert.equal(grant.SendMessages, false, 'reads the ticket, writes only in the thread');
+  assert.equal(grant.SendMessagesInThreads, true);
+
+  // A thread made before this fix: pressing again adds the builder to it.
+  order.length = 0;
+  await handleContactFreelancer(as(s, s.client), ['contact_freelancer', s.ticketId, s.bob.id]);
+  assert.deepEqual(order, [`perm:${s.bob.id}`, `add:${s.bob.id}`]);
+});
+
 test('tickets are numbered per server: #1, #2 … independent between servers', () => {
   const open = (guildId) => getTicketById(createTicket({ type: 'help', guildId, clientId: 'c', clientChannelId: null }).id).number;
   assert.deepEqual([open('g-num-a'), open('g-num-a'), open('g-num-b'), open('g-num-a')], [1, 2, 1, 3]);

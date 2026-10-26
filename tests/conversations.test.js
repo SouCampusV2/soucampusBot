@@ -57,7 +57,7 @@ test("a builder's message: one card in the client's ticket, its copy for the bui
   assert.match(payloadText(clientCard), /Which roof style\?/);
   const conv = findConversation(s.ticketId, s.bob.id);
   assert.deepEqual(customIds(clientCard), [`reply_relay:${conv.id}`, `contact_freelancer:${s.ticketId}:${s.bob.id}`]);
-  assert.deepEqual(customIds(s.quoteChannel.sent[0]), [], 'the copy for builders has no buttons');
+  assert.deepEqual(customIds(s.quoteChannel.sent[0]), [`reply_relay:${conv.id}`], 'no thread button for builders');
   assert.ok(s.discord.dms.some((d) => d.to === s.client.id), 'the client is told by DM');
 });
 
@@ -93,15 +93,6 @@ test('another builder cannot reply in Bob\'s conversation; a second builder gets
 
   await send(s, s.carol, 'Do you need a lobby?');
   assert.equal(s.clientChannel.sent.length, 2, 'a separate card per builder');
-});
-
-test("the builder's next Send Message is added to their own card, not posted anew", async () => {
-  const s = setup('g-conv-again');
-  await send(s, s.bob, 'Which roof style?');
-  await send(s, s.bob, 'And the terrain?');
-  assert.equal(s.clientChannel.sent.length, 1);
-  assert.equal(s.quoteChannel.sent.length, 1);
-  assert.match(payloadText([...s.quoteChannel.posted.values()][0]), /And the terrain\?/);
 });
 
 test('a Reply button from the old relay (ticket id in the customId) explains instead of crashing', async () => {

@@ -164,6 +164,74 @@ export function getTicketPanelPayload(guildId, { guildName } = {}) {
   return { components: [card], flags: MessageFlags.IsComponentsV2 };
 }
 
+/**
+ * Server rules — a Components V2 card in the brand color. Posted and edited in place by
+ * /setup rules; /rules shows the same card privately to whoever asks.
+ * Payment and revisions follow soucampus.online/terms/discord (owner's answers 26.10).
+ * @param {string} guildId
+ */
+export function getRulesPayload(guildId) {
+  const terms = getSetting(guildId, 'terms_url') || DEFAULT_TERMS_URL;
+  const privacy = getSetting(guildId, 'privacy_url') || DEFAULT_PRIVACY_URL;
+  const image = getSetting(guildId, 'rules_image_url');
+  const panelId = getSetting(guildId, 'channel_panel');
+  const ticketsAt = panelId ? `<#${panelId}>` : 'the ticket panel';
+
+  const card = new ContainerBuilder()
+    .setAccentColor(brandColor(guildId))
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        '# 🌸 Rules & Terms\n' + 'Welcome to **SouCampus Builds**! Please read this before chatting or placing an order.'
+      )
+    )
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Large))
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent(
+        '### 💬 Community\n' +
+          '**1.** Be respectful. No harassment, hate speech or personal attacks.\n' +
+          '**2.** No spam, flooding or unsolicited advertising — DMs to members included.\n' +
+          `**3.** Keep channels on topic. Orders and questions go to ${ticketsAt}.\n` +
+          '**4.** No NSFW, illegal or leaked content.\n' +
+          '**5.** Don’t repost our builds or claim them as your own.\n' +
+          '**6.** Follow the [Discord Terms of Service](https://discord.com/terms).'
+      ),
+      new TextDisplayBuilder().setContent(
+        '### 🎫 Tickets\n' +
+          '**7.** One ticket per request — keep talking in the one you have.\n' +
+          '**8.** Fill the order form honestly: size, style, version, deadline. A clear brief = a better build.\n' +
+          '**9.** Tickets left without activity are closed automatically.\n' +
+          '**10.** Don’t ping staff or builders over and over — we see every ticket.'
+      ),
+      new TextDisplayBuilder().setContent(
+        '### 🏗️ Orders\n' +
+          '**11.** Every order goes **through a ticket**. Deals made in DMs aren’t covered by us.\n' +
+          '**12.** Price and deadline are agreed in the ticket before work starts.\n' +
+          '**13.** You pay by **PayPal** or **Wise**, against an invoice we send you. Work starts after payment.\n' +
+          '**14.** Changes during the build are fine within the brief; after delivery, 1–2 rounds of revisions are included.\n' +
+          '**15.** When it’s done, leave a review — it helps other clients and our builders.'
+      ),
+      new TextDisplayBuilder().setContent(
+        '### 🛡️ Staff\n' +
+          '**16.** Disagree with a decision? Open a **Support** ticket instead of arguing in chat.\n' +
+          '**17.** Breaking the rules can lead to a warning, mute or ban, depending on how serious it is.'
+      )
+    );
+  if (image) card.addMediaGalleryComponents(new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(image)));
+  card
+    .addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small))
+    .addTextDisplayComponents(
+      new TextDisplayBuilder().setContent('-# By ordering through our tickets you agree to these rules and our Terms. 🌸')
+    )
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(SITE_URL).setLabel('Website'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(terms).setLabel('Terms'),
+        new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(privacy).setLabel('Privacy')
+      )
+    );
+  return { components: [card], flags: MessageFlags.IsComponentsV2 };
+}
+
 // --- Components V2 building blocks (ticket cards) ---
 
 const text = (content) => new TextDisplayBuilder().setContent(content);

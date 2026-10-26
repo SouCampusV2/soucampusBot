@@ -36,7 +36,7 @@ src/modules/site/SiteBridge.js              мост на сайт: подпис
 src/modules/site/consent.js                 кнопки согласия клиента (работа / отзыв на сайте)
 src/modules/tickets/Transcript.js           транскрипт переписки при закрытии (слушает status)
 src/interactions/handlers/   один файл = один префикс customId
-src/commands/                /setup, /invite (данные команды + обработчик)
+src/commands/                /setup, /invite, /orders, /stats, /rules (данные команды + обработчик)
 src/embeds/templates.js      все эмбеды, кнопки, модалки
 src/jobs/deadlineJob.js      cron 09:00 BOT_TIMEZONE: напоминания о дедлайне
 src/jobs/cleanupJob.js       раз в 10 минут: удалить каналы закрытых тикетов + гигиена брошенных форм
@@ -44,6 +44,7 @@ src/jobs/backupJob.js        04:00: бэкап базы (только если �
 src/utils/permissions.js     isManagerOrAdmin, ensureTicketClient — ВСЕ проверки «кто ты»
 src/utils/replies.js         replyError — ответ об ошибке в любом состоянии interaction
 src/utils/panel.js           ensurePanel — панель без дублей
+src/utils/rules.js           upsertRules — карточка правил, правится на месте (rules_message_id)
 src/utils/channels.js        archiveChannel / archiveQuoteChannel — в архив и только чтение
 src/utils/dates.js           parseDeadline — текст человека → 'YYYY-MM-DD'
 src/utils/pricing.js         parseSize, estimateOrder — формула цены сайта
@@ -166,7 +167,8 @@ handler(interaction, parts)
 | Send Message (кнопка И модалка) | билдер (роль Freelancer) или менеджер, заказ `open`, не сам клиент | `startRefusal` | 🟡 тест есть |
 | Reply в переписке (кнопка И модалка) | клиент и билдер, начавший переписку (не менеджер, не админ) | `speakerRole` | 🟡 тест есть |
 | Оплата, завершение, дедлайн (кнопка И модалка), `/invite` | менеджер | `isManagerOrAdmin`: Administrator или роль из `/setup` | 🟡 тест есть |
-| `/setup` | админ | `setDefaultMemberPermissions(Administrator)` | 🟢 |
+| `/setup` (в т.ч. rules, announcements_channel) | админ | `setDefaultMemberPermissions(Administrator)` | 🟢 |
+| `/rules` | все; ответ видит только спросивший | — (только чтение) | 🟡 тест есть |
 
 **Менеджер по имени роли.** Роль «Manager»/«Admin» по имени работает, только
 пока роль менеджера не задана через `/setup`. Как только задана — двойник с

@@ -81,6 +81,7 @@ VPS с ветки `dev`. Тестов 120, CI зелёный (Node 22 и 24). В
 | `/orders`, `/stats`, лог-канал, авто-гигиена брошенных форм | 🟡 | `Reports.js`, `StaffLog.js`, `cleanupJob.js` |
 | Фаза 4 А: согласие клиента → черновик работы / отзыв на сайт (очередь, подпись) | 🟡 бот / 🔴 сайт | `docs/PHASE4.md` |
 | Фаза 4 Б: витрина сайт → Discord: вебхук (`/setup showcase_channel`), реакции бота (`/setup showcase_reactions`), посты в стиле сообщения из админки | 🟡 бот / 🔴 сайт | формат проверен на живом Discord 27.10 |
+| **Правила** (`/setup rules` — карточка в канале, правится на месте; `/rules` — лично) и **анонсы с сайта** (`/setup announcements_channel` → вебхук для `/admin/announce`) | 🟡 бот / 🟡 сайт (анонсы уже шлёт обычным текстом) | `utils/rules.js`, `OWNER-TASKS.md` п. 9 |
 | Страницы условий `/terms/discord`, `/privacy#discord` | 🔴 сайт | текст: `docs/phase4/site/content/` |
 
 ---

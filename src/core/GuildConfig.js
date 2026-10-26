@@ -35,6 +35,10 @@ export const SETTINGS = {
   category_staff: { column: 'category_staff', env: null },
   channel_staff_announcements: { column: 'channel_staff_announcements', env: null },
   channel_staff_chat: { column: 'channel_staff_chat', env: null },
+  channel_announcements: { column: 'channel_announcements', env: null },
+  channel_rules: { column: 'channel_rules', env: null },
+  rules_message_id: { column: 'rules_message_id', env: null },
+  rules_image_url: { column: 'rules_image_url', env: null },
 };
 
 /** In-memory cache: guildId -> config row. Invalidated on write. */

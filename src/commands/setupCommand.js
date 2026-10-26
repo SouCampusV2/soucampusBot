@@ -16,14 +16,17 @@
  *   /setup links [terms] [privacy] [banner] — legal links and banner on the panel
  *   /setup log_channel     <channel>    — staff log: one line per ticket event
  *   /setup showcase_channel <channel> [new_link] — webhook the website posts portfolio works through
+ *   /setup announcements_channel <channel> [new_link] — webhook the website posts announcements through
+ *   /setup rules           [channel] [image] — post the rules card, or update ours in place
  *   /setup staff_channels                — Staff category: #staff-announcements + #staff-chat (managers + builders)
  *   /setup view                          — show current configuration
  */
 
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { setSetting, getGuildConfig } from '../core/GuildConfig.js';
+import { setSetting, getSetting, getGuildConfig } from '../core/GuildConfig.js';
 import { upsertPanel } from '../utils/panel.js';
-import { ensureShowcaseWebhook } from '../modules/site/showcaseWebhook.js';
+import { ensureShowcaseWebhook, ensureAnnounceWebhook } from '../modules/site/showcaseWebhook.js';
+import { upsertRules } from '../utils/rules.js';
 import { parseReactionList } from '../modules/site/showcaseReactions.js';
 import { ensureStaffChannels, STAFF_ROLES_MISSING } from '../modules/staff/staffChannels.js';
 import { replyError } from '../utils/replies.js';
@@ -71,6 +74,14 @@ export const setupCommandData = new SlashCommandBuilder()
     s.setName('showcase_channel').setDescription('Channel the website posts portfolio works to (gives a webhook link)')
       .addChannelOption((o) => o.setName('channel').setDescription('Text channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
       .addBooleanOption((o) => o.setName('new_link').setDescription('Issue a new link; the old one stops working')))
+  .addSubcommand((s) =>
+    s.setName('announcements_channel').setDescription('Channel the website posts announcements to (gives a webhook link)')
+      .addChannelOption((o) => o.setName('channel').setDescription('Text or announcement channel').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement).setRequired(true))
+      .addBooleanOption((o) => o.setName('new_link').setDescription('Issue a new link; the old one stops working')))
+  .addSubcommand((s) =>
+    s.setName('rules').setDescription('Post the server rules, or update ours in place')
+      .addChannelOption((o) => o.setName('channel').setDescription('Channel (defaults to the last one used, else here)').addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+      .addStringOption((o) => o.setName('image').setDescription('Picture under the rules (https://…); "none" removes it')))
   .addSubcommand((s) =>
     s.setName('links').setDescription('Links and banner on the ticket panel')
       .addStringOption((o) => o.setName('terms').setDescription('Terms page (https://…)'))
@@ -135,6 +146,41 @@ export async function handleSetupCommand(interaction) {
             'Put this link into the site’s environment as **DISCORD_SHOWCASE_WEBHOOK_URL** (Vercel → Settings → Environment Variables):\n' +
             `||${webhook.url}||\n` +
             '⚠️ Treat it like a password: anyone with it can post in that channel. Leaked? Run this again with `new_link: true`.',
+        });
+        return;
+      }
+      case 'announcements_channel': {
+        const channel = interaction.options.getChannel('channel');
+        const rotate = interaction.options.getBoolean('new_link') ?? false;
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const webhook = await ensureAnnounceWebhook(channel, interaction.client.user.id, { rotate });
+        setSetting(guildId, 'channel_announcements', channel.id);
+        await interaction.editReply({
+          content:
+            `✅ The website will post announcements in <#${channel.id}>.\n` +
+            'Put this link into the site’s environment as **DISCORD_ANNOUNCE_WEBHOOK_URL** (Vercel → Settings → Environment Variables):\n' +
+            `||${webhook.url}||\n` +
+            '⚠️ Treat it like a password: anyone with it can post in that channel. Leaked? Run this again with `new_link: true`.',
+        });
+        return;
+      }
+      case 'rules': {
+        const image = interaction.options.getString('image')?.trim();
+        if (image && image.toLowerCase() !== 'none' && !/^https:\/\//.test(image)) {
+          await interaction.reply({ content: '**image** must be an https:// link (or `none`).', flags: MessageFlags.Ephemeral });
+          return;
+        }
+        // Fetching and editing the old post can exceed Discord's 3 seconds.
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const savedId = getSetting(guildId, 'channel_rules');
+        const channel =
+          interaction.options.getChannel('channel') ||
+          (savedId && (await interaction.client.channels.fetch(savedId).catch(() => null))) ||
+          interaction.channel;
+        if (image) setSetting(guildId, 'rules_image_url', image.toLowerCase() === 'none' ? '' : image);
+        const result = await upsertRules(channel);
+        await interaction.editReply({
+          content: result === 'updated' ? `✅ Rules updated in <#${channel.id}>.` : `✅ Rules posted in <#${channel.id}>.`,
         });
         return;
       }
@@ -245,6 +291,9 @@ export async function handleSetupCommand(interaction) {
           line('Panel channel', cfg.channel_panel, 'channel'),
           line('Staff log channel', cfg.channel_log, 'channel'),
           line('Showcase channel', cfg.channel_showcase, 'channel'),
+          line('Announcements channel', cfg.channel_announcements, 'channel'),
+          line('Rules channel', cfg.channel_rules, 'channel'),
+          line('Rules picture', cfg.rules_image_url, 'text'),
           line('Staff announcements', cfg.channel_staff_announcements, 'channel'),
           line('Staff chat', cfg.channel_staff_chat, 'channel'),
           line('Showcase reactions', cfg.showcase_reactions, 'text'),

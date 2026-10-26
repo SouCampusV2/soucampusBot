@@ -127,6 +127,10 @@ CREATE TABLE IF NOT EXISTS guild_config (
   category_staff TEXT,
   channel_staff_announcements TEXT,
   channel_staff_chat TEXT,
+  channel_announcements TEXT,
+  channel_rules TEXT,
+  rules_message_id TEXT,
+  rules_image_url TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

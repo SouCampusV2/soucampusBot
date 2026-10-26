@@ -49,7 +49,14 @@
    `.env` на VPS (`SITE_BRIDGE_URL`, `SITE_BRIDGE_SECRET`); миграция preview →
    прод; файлы в сайт. До этого согласия клиентов копятся в очереди бота —
    ничего не теряется.
-9. ⚠️ **Не запускать бота локально (`npm start`)**, пока он работает на VPS:
+9. **Правила и анонсы** (код в `dev` с 27.10, на VPS — после деплоя):
+   - `/setup color #F97316` — оранжевый сайта для всех карточек бота;
+   - `/setup rules channel:#🌸rules image:https://…` — карточка правил
+     (старое сообщение-эмбед в #rules удалить руками);
+   - `/setup announcements_channel #🌸announcements` → ссылку из ответа в
+     Vercel как `DISCORD_ANNOUNCE_WEBHOOK_URL` → Redeploy. Дальше анонсы —
+     с сайта, `/admin/announce` → «Discord only» или «Site + Discord».
+10. ⚠️ **Не запускать бота локально (`npm start`)**, пока он работает на VPS:
    один токен — один процесс, иначе каждое нажатие выполнится дважды
    (`docs/DEPLOY.md`).
 

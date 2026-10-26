@@ -96,3 +96,26 @@ g) В Discord: /setup links terms:https://soucampus.online/terms/discord
 
 Если что-то требует правки на стороне бота — не правь бота отсюда, запиши в отчёт для владельца.
 ```
+
+---
+
+## Дополнение 2026-10-27: анонсы с оранжевой плашкой
+
+Отдельный короткий промпт — можно дать в той же сессии по сайту или в своей.
+
+```
+Задача: объявления из /admin/announce должны приходить в Discord с цветной плашкой слева
+(оранжевый сайта #F97316), а не обычным текстом.
+
+Сейчас src/lib/discord-announce.ts шлёт { content: "## title\ntext\nlink\n@ping" }. Сделать:
+- announcementPayload → { content: пинг или undefined, embeds: [{ title, description: text,
+  url: полная ссылка (если есть), color: 0xF97316 }], allowed_mentions как сейчас, username,
+  avatar_url }. Пинг остаётся в content: внутри эмбеда @everyone не срабатывает.
+- Пределы Discord: title ≤ 256, description ≤ 4096 (сейчас MAX_BODY 1000 — оставить).
+- Обновить src/lib/discord-announce.test.ts (формат проверяется без сети) и превью в
+  AnnounceForm, если оно рисует сообщение.
+- Вебхук теперь выдаёт бот: /setup announcements_channel #канал → ссылка в Vercel как
+  DISCORD_ANNOUNCE_WEBHOOK_URL. Он создан приложением, поэтому getDiscordBotIdentity может
+  брать подпись прямо из него (а не из вебхука витрины).
+Правила репозитория (docs/RULES.md, ветка dev, коммиты без соавторства ИИ) — как обычно.
+```

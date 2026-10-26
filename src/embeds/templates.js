@@ -685,7 +685,7 @@ const CONVERSATION_TEXT_BUDGET = 3000;
  * One conversation as a card: every message in order, newest at the bottom; when it no longer
  * fits, the oldest are hidden and the card suggests a thread. Two sides:
  *   client — in the client's channel: Reply + Open private thread (the client only);
- *   quote  — the copy in the quote channel: Reply (the builder who asked).
+ *   quote  — the copy in the quote channel: read-only, no buttons.
  * @param {{ id: string, number?: number, client_id: string, guild_id?: string }} ticket
  * @param {{ id: number, ticket_id: string, freelancer_id: string }} conversation
  * @param {{ author_name: string, author_role: string, content: string, created_at: number }[]} messages
@@ -707,7 +707,7 @@ export function conversationCardPayload(ticket, conversation, messages, side) {
   const header =
     side === 'client'
       ? `### 💬 ${builder} has a question\n-# Order ${ticketLabel(ticket)} · for <@${ticket.client_id}> · the builders of this order see this conversation too`
-      : `### 💬 ${builder} ↔ the client\n-# Order ${ticketLabel(ticket)} · visible to all builders of this order · only ${builder} and the client reply here`;
+      : `### 💬 ${builder} ↔ the client\n-# Order ${ticketLabel(ticket)} · visible to all builders of this order · ${builder} adds to it with **Send Message** above`;
   const card = new ContainerBuilder()
     .setAccentColor(brandColor(ticket.guild_id))
     .addTextDisplayComponents(text(header))
@@ -716,17 +716,16 @@ export function conversationCardPayload(ticket, conversation, messages, side) {
   if (hidden) {
     card.addTextDisplayComponents(text(`-# ${hidden} earlier message${hidden === 1 ? '' : 's'} not shown — for a longer talk, open a private thread.`));
   }
+  // The quote-channel copy is read-only (owner's decision 2026-10-26): the builder adds to it
+  // with Send Message on the order brief.
+  if (side === 'quote') return v2(card);
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`${PREFIX.REPLY_RELAY}:${conversation.id}`).setLabel('Reply').setStyle(ButtonStyle.Primary)
+    new ButtonBuilder().setCustomId(`${PREFIX.REPLY_RELAY}:${conversation.id}`).setLabel('Reply').setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`${PREFIX.CONTACT_FREELANCER}:${ticket.id}:${conversation.freelancer_id}`)
+      .setLabel('Open private thread')
+      .setStyle(ButtonStyle.Secondary)
   );
-  if (side === 'client') {
-    row.addComponents(
-      new ButtonBuilder()
-        .setCustomId(`${PREFIX.CONTACT_FREELANCER}:${ticket.id}:${conversation.freelancer_id}`)
-        .setLabel('Open private thread')
-        .setStyle(ButtonStyle.Secondary)
-    );
-  }
   return v2(card.addSeparatorComponents(divider()).addActionRowComponents(row));
 }
 

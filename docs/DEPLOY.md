@@ -13,7 +13,7 @@
 | Данные | `/home/deploy/bocampus/data/bot.db` + `data/backups/` (в git не попадает) |
 | Секреты | `/home/deploy/bocampus/.env`, права `600`, только на сервере |
 | Код | `git pull` по read-only deploy key `~/.ssh/github_bocampus` (на сервере), в GitHub — «VPS 76.13.156.182 (read-only)» |
-| Запущен | 2026-10-26, ветка `dev`; 35 МБ из 256 |
+| Запущен | 2026-10-26, ветка `dev`; с 2026-10-27 — `master`; 35 МБ из 256 |
 
 Бот только сам ходит к Discord — портов не открывает, traefik не трогает.
 

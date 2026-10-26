@@ -22,6 +22,9 @@
   вебхук витрины (тест).
 - Четыре колонки `guild_config`: `channel_announcements`, `channel_rules`,
   `rules_message_id`, `rules_image_url` — в `schema.sql` и `runMigrations`.
+- **Мёрж `dev` → `master`** (перемотка, 42 коммита) по решению владельца,
+  сервер переключён на `master`. Прогон `TEMP.md` ещё не закончен — правки
+  дальше идут в `dev` и мёржатся так же.
 - Оранжевая плашка у анонсов с сайта — правка на стороне сайта (обычный
   текст → эмбед с цветом), записана в `docs/phase4/SITE-PROMPT.md`.
 

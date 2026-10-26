@@ -24,6 +24,7 @@ export const SETTINGS = {
   role_freelancer: { column: 'role_freelancer', env: 'ROLE_FREELANCER_ID' },
   brand_color: { column: 'brand_color', env: 'BRAND_COLOR' },
   channel_log: { column: 'channel_log', env: 'CHANNEL_LOG' },
+  channel_showcase: { column: 'channel_showcase', env: 'CHANNEL_SHOWCASE' },
 };
 
 /** In-memory cache: guildId -> config row. Invalidated on write. */

@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS guild_config (
   role_freelancer TEXT,
   brand_color TEXT,
   channel_log TEXT,
+  channel_showcase TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

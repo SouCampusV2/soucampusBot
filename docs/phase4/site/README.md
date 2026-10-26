@@ -1,11 +1,17 @@
-# Пакет для сайта — приём из Discord-бота
+# Пакет для сайта — связка с Discord-ботом
 
 Файлы этой папки повторяют пути в репозитории сайта (`Claude/FirstTry`).
 **Написаны, но в репозитории сайта не запускались** — их нужно перенести и
 прогнать проверки сайта. В сайт не коммитил намеренно: у него свои правила
 (ветка `dev`, миграции на проде прогоняет владелец, деплой Vercel).
 
-Зачем и как устроено — `../../PHASE4.md`.
+Зачем и как устроено — `../../PHASE4.md`. Две независимые части:
+
+- **А. Discord → сайт:** черновики работ и отзывы от бота (с согласия клиента)
+  в очередь `discord_inbox`, публикует владелец.
+- **Б. Сайт → Discord (витрина):** владелец собирает пост о работе в админке —
+  черновик, превью «как в Discord», публикация, правка, удаление. Сайт шлёт
+  пост сам в вебхук канала витрины. Бот ничего не опрашивает.
 
 ## Что перенести
 
@@ -15,6 +21,11 @@
 | `src/lib/discord-bridge.ts` | то же | подпись, проверка тела, скачивание фото с защитой от SSRF |
 | `src/lib/discord-bridge.test.ts` | то же | общий с ботом тестовый вектор подписи |
 | `src/app/api/discord/bridge/route.ts` | то же | вход для бота |
+| `supabase/migrations/20261027130000_discord_posts.sql` | то же | **Б:** посты витрины (черновик / опубликован + id сообщения) |
+| `src/lib/discord-showcase.ts` | то же | **Б:** пост из работы, проверка пределов Discord, публикация / правка / удаление через вебхук |
+| `src/lib/discord-showcase.test.ts` | то же | **Б:** тесты |
+| `src/app/api/admin/discord/showcase/route.ts` | то же | **Б:** save / publish / update / unpublish / delete |
+| `src/components/DiscordPreview.tsx` | то же | **Б:** превью поста в стиле Discord |
 
 ## Правки в существующих файлах сайта
 
@@ -34,9 +45,13 @@
 
 1. Сгенерировать секрет: `openssl rand -hex 32` (или
    `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`).
-2. Vercel → Environment Variables: `DISCORD_BRIDGE_SECRET` для Preview и
-   Production (разные значения можно, но тогда и у бота два).
-3. Миграция на **preview** → `npm test`, `npx tsc --noEmit`, `npm run lint`,
+2. Vercel → Environment Variables:
+   - `DISCORD_BRIDGE_SECRET` (часть А) для Preview и Production;
+   - `DISCORD_SHOWCASE_WEBHOOK_URL` (часть Б): в Discord выполнить
+     `/setup showcase_channel #канал` — бот ответит ссылкой (видна только тебе).
+     Для проверки на Preview укажи в `/setup showcase_channel` тестовый канал,
+     потом верни боевой (ссылка у каждого канала своя).
+3. Обе миграции (`…120000_discord_inbox`, `…130000_discord_posts`) на **preview** → `npm test`, `npx tsc --noEmit`, `npm run lint`,
    `npm run build` → пуш в `dev` → проверка на preview (ниже).
 4. Миграция на **проде** → мёрж в `master`.
 5. На VPS бота в `/home/deploy/bocampus/.env`:
@@ -55,6 +70,31 @@
   pending и уведомление админу. Удалить её руками после проверки.
 
 ## Админка `/admin/discord` (сделать в сессии сайта)
+
+Две вкладки: **Inbox** (часть А) и **Showcase** (часть Б).
+
+### Showcase — посты в Discord
+
+- Список постов (`discord_posts`, свежие сверху): черновики и опубликованные,
+  у опубликованных — дата.
+- **«New post from a work»**: выбрать работу портфолио → `draftFromProject`
+  даёт черновик (картинка, текст, размер/срок/цена, кнопки «View on website»
+  и «Get this map / Download free»).
+- **Редактор слева, `DiscordPreview` справа**, превью обновляется при вводе:
+  заголовок, ссылка заголовка, верхняя строка, текст, картинка (выбор из
+  обложки и галереи работы или своя https-ссылка), цвет полосы, поля
+  (добавить / убрать / inline), кнопки (до 5), упоминание: none / @here /
+  @everyone (по умолчанию none). Ошибки `checkPost` — под формой, кнопка
+  Publish неактивна, пока есть ошибка.
+- Кнопки: **Save draft**, **Publish** (черновик), **Update in Discord** и
+  **Remove from Discord** (опубликованный; Remove возвращает в черновики),
+  **Delete** (только черновик).
+- На странице работы в `/admin/portfolio` — кнопка **«Post to Discord»** →
+  новый черновик из этой работы.
+- Нет `DISCORD_SHOWCASE_WEBHOOK_URL` — вкладка показывает, как его получить
+  (`/setup showcase_channel`), кнопки публикации неактивны.
+
+### Inbox — пришло из Discord
 
 Нужна, чтобы очередь не копилась невидимой. Минимум:
 

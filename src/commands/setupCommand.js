@@ -12,12 +12,14 @@
  *   /setup color           <hex>        — brand color for embeds (e.g. #5865F2)
  *   /setup panel           [channel]    — post the ticket panel (defaults to current channel)
  *   /setup log_channel     <channel>    — staff log: one line per ticket event
+ *   /setup showcase_channel <channel> [new_link] — webhook the website posts portfolio works through
  *   /setup view                          — show current configuration
  */
 
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { setSetting, getGuildConfig } from '../core/GuildConfig.js';
 import { getTicketPanelPayload } from '../embeds/templates.js';
+import { ensureShowcaseWebhook } from '../modules/site/showcaseWebhook.js';
 import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
 
@@ -53,6 +55,10 @@ export const setupCommandData = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s.setName('log_channel').setDescription('Staff log channel: one line per ticket event')
       .addChannelOption((o) => o.setName('channel').setDescription('Text channel (staff only)').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+  .addSubcommand((s) =>
+    s.setName('showcase_channel').setDescription('Channel the website posts portfolio works to (gives a webhook link)')
+      .addChannelOption((o) => o.setName('channel').setDescription('Text channel').addChannelTypes(ChannelType.GuildText).setRequired(true))
+      .addBooleanOption((o) => o.setName('new_link').setDescription('Issue a new link; the old one stops working')))
   .addSubcommand((s) => s.setName('view').setDescription('Show current configuration'))
   .toJSON();
 
@@ -82,6 +88,22 @@ export async function handleSetupCommand(interaction) {
         const channel = interaction.options.getChannel('channel');
         setSetting(guildId, 'channel_reviews', channel.id);
         await interaction.reply({ content: `✅ Reviews will be posted in <#${channel.id}>.`, flags: MessageFlags.Ephemeral });
+        return;
+      }
+      case 'showcase_channel': {
+        const channel = interaction.options.getChannel('channel');
+        const rotate = interaction.options.getBoolean('new_link') ?? false;
+        // Fetching/creating webhooks is a few API calls — answer within Discord's 3 seconds first.
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const webhook = await ensureShowcaseWebhook(channel, interaction.client.user.id, { rotate });
+        setSetting(guildId, 'channel_showcase', channel.id);
+        await interaction.editReply({
+          content:
+            `✅ The website will post portfolio works in <#${channel.id}>.\n` +
+            'Put this link into the site’s environment as **DISCORD_SHOWCASE_WEBHOOK_URL** (Vercel → Settings → Environment Variables):\n' +
+            `||${webhook.url}||\n` +
+            '⚠️ Treat it like a password: anyone with it can post in that channel. Leaked? Run this again with `new_link: true`.',
+        });
         return;
       }
       case 'log_channel': {
@@ -133,6 +155,7 @@ export async function handleSetupCommand(interaction) {
           line('Reviews channel', cfg.channel_reviews, 'channel'),
           line('Panel channel', cfg.channel_panel, 'channel'),
           line('Staff log channel', cfg.channel_log, 'channel'),
+          line('Showcase channel', cfg.channel_showcase, 'channel'),
           line('Manager role', cfg.role_manager, 'role'),
           line('Freelancer role', cfg.role_freelancer, 'role'),
           line('Brand color', cfg.brand_color, 'text'),

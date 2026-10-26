@@ -37,13 +37,13 @@ export function startRefusal(member, ticket) {
 }
 
 /**
- * Who this member is in the conversation: its client, its builder, or the team. null = outsider.
- * @returns {'client' | 'builder' | 'team' | null}
+ * Who this member is in the conversation: its client or the builder who started it. Anyone
+ * else — other builders, managers, admins — cannot reply (owner's decision 2026-10-26).
+ * @returns {'client' | 'builder' | null}
  */
 export function speakerRole(member, ticket, conversation) {
   if (member.id === ticket.client_id) return 'client';
   if (member.id === conversation.freelancer_id) return 'builder';
-  if (isManagerOrAdmin(member)) return 'team';
   return null;
 }
 

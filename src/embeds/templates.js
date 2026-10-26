@@ -673,7 +673,7 @@ export function buildSendMessageModal(ticketId) {
   );
 }
 
-/** Reply in a conversation (client, its builder or the team). customId: reply_relay_modal:conversationId */
+/** Reply in a conversation (its client or its builder). customId: reply_relay_modal:conversationId */
 export function buildReplyRelayModal(conversationId) {
   return messageModal(`${PREFIX.REPLY_RELAY_MODAL}:${conversationId}`, 'Reply', 'Your reply', 'Added to the same conversation card.');
 }

@@ -95,6 +95,17 @@ test('another builder cannot reply in Bob\'s conversation; a second builder gets
   assert.equal(s.clientChannel.sent.length, 2, 'a separate card per builder');
 });
 
+test('a manager or admin who is not this builder cannot reply either', async () => {
+  const s = setup('g-conv-admin');
+  await send(s, s.bob, 'Which roof style?');
+  const conv = findConversation(s.ticketId, s.bob.id);
+  const admin = fakeMember(s.guild, { admin: true, name: 'Owner' });
+  const i = as(s, admin, say('as admin'));
+  await handleReplyRelayModal(i, ['reply_relay_modal', String(conv.id)]);
+  assert.match(answerText(i), /only the client and this builder/i);
+  assert.equal(listConversationMessages(conv.id).length, 1);
+});
+
 test('a Reply button from the old relay (ticket id in the customId) explains instead of crashing', async () => {
   const s = setup('g-conv-legacy');
   const i = as(s, s.client);

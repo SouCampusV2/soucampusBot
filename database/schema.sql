@@ -84,6 +84,8 @@ CREATE TABLE IF NOT EXISTS guild_config (
   category_active_orders TEXT,
   category_quotes TEXT,
   category_archived TEXT,
+  category_help TEXT,
+  category_applications TEXT,
   channel_panel TEXT,
   channel_reviews TEXT,
   role_manager TEXT,

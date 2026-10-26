@@ -3,7 +3,9 @@
  * Stores values in guild_config so the bot can be added to any server and configured in-Discord.
  *
  * Subcommands:
- *   /setup active_orders   <category>   — category for new order/help/application tickets
+ *   /setup active_orders   <category>   — category for order tickets (fallback for the others)
+ *   /setup help_category   <category>   — category for support tickets
+ *   /setup applications_category <category> — category for team applications
  *   /setup quotes          <category>   — category for freelancer quote channels
  *   /setup archived        <category>   — category completed tickets are moved to
  *   /setup reviews         <channel>    — channel where reviews are posted
@@ -30,7 +32,13 @@ export const setupCommandData = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString())
   .setDMPermission(false)
   .addSubcommand((s) =>
-    s.setName('active_orders').setDescription('Category for new ticket channels')
+    s.setName('active_orders').setDescription('Category for order tickets (and other types without their own)')
+      .addChannelOption((o) => o.setName('category').setDescription('Category').addChannelTypes(ChannelType.GuildCategory).setRequired(true)))
+  .addSubcommand((s) =>
+    s.setName('help_category').setDescription('Category for support tickets')
+      .addChannelOption((o) => o.setName('category').setDescription('Category').addChannelTypes(ChannelType.GuildCategory).setRequired(true)))
+  .addSubcommand((s) =>
+    s.setName('applications_category').setDescription('Category for team applications')
       .addChannelOption((o) => o.setName('category').setDescription('Category').addChannelTypes(ChannelType.GuildCategory).setRequired(true)))
   .addSubcommand((s) =>
     s.setName('quotes').setDescription('Category for freelancer quote channels')
@@ -82,9 +90,17 @@ export async function handleSetupCommand(interaction) {
   try {
     switch (sub) {
       case 'active_orders':
+      case 'help_category':
+      case 'applications_category':
       case 'quotes':
       case 'archived': {
-        const key = { active_orders: 'category_active_orders', quotes: 'category_quotes', archived: 'category_archived' }[sub];
+        const key = {
+          active_orders: 'category_active_orders',
+          help_category: 'category_help',
+          applications_category: 'category_applications',
+          quotes: 'category_quotes',
+          archived: 'category_archived',
+        }[sub];
         const category = interaction.options.getChannel('category');
         setSetting(guildId, key, category.id);
         await interaction.reply({ content: `✅ Set **${sub}** category to **${category.name}**.`, flags: MessageFlags.Ephemeral });
@@ -177,7 +193,9 @@ export async function handleSetupCommand(interaction) {
           return `• **${label}**: \`${val}\``;
         };
         const text = [
-          line('Active orders category', cfg.category_active_orders, 'channel'),
+          line('Orders category', cfg.category_active_orders, 'channel'),
+          line('Support category', cfg.category_help, 'channel'),
+          line('Applications category', cfg.category_applications, 'channel'),
           line('Quotes category', cfg.category_quotes, 'channel'),
           line('Archived category', cfg.category_archived, 'channel'),
           line('Reviews channel', cfg.channel_reviews, 'channel'),

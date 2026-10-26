@@ -18,6 +18,8 @@ export const SETTINGS = {
   category_active_orders: { column: 'category_active_orders', env: 'CATEGORY_ACTIVE_ORDERS' },
   category_quotes: { column: 'category_quotes', env: 'CATEGORY_QUOTES' },
   category_archived: { column: 'category_archived', env: 'CATEGORY_ARCHIVED' },
+  category_help: { column: 'category_help', env: 'CATEGORY_HELP' },
+  category_applications: { column: 'category_applications', env: 'CATEGORY_APPLICATIONS' },
   channel_panel: { column: 'channel_panel', env: 'CHANNEL_TICKET_PANEL' },
   channel_reviews: { column: 'channel_reviews', env: 'CHANNEL_REVIEWS' },
   role_manager: { column: 'role_manager', env: 'ROLE_MANAGER_ID' },

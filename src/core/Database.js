@@ -77,7 +77,7 @@ function runMigrations(db) {
   ).run();
 
   const guildColumns = db.prepare('PRAGMA table_info(guild_config)').all().map((c) => c.name);
-  for (const column of ['terms_url', 'privacy_url', 'panel_banner_url']) {
+  for (const column of ['terms_url', 'privacy_url', 'panel_banner_url', 'category_help', 'category_applications']) {
     if (!guildColumns.includes(column)) {
       db.exec(`ALTER TABLE guild_config ADD COLUMN ${column} TEXT`);
       logger.info('Migration: added column', { table: 'guild_config', column });

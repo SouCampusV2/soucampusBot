@@ -47,7 +47,9 @@ export async function handleConfirmTicket(interaction, parts, { fresh = false } 
     return;
   }
 
-  const categoryId = getSetting(guild.id, 'category_active_orders');
+  // Each type has its own category; help and applications fall back to the orders category.
+  const typeCategory = { help: 'category_help', application: 'category_applications' }[type];
+  const categoryId = (typeCategory && getSetting(guild.id, typeCategory)) || getSetting(guild.id, 'category_active_orders');
   if (!categoryId) {
     logger.error('category_active_orders not configured', { guildId: guild.id });
     await interaction.reply({

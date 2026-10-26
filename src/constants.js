@@ -30,6 +30,8 @@ export const PREFIX = {
   ORDER_FORM_2_MODAL: 'order_form_2_modal',
   /** Order dialog: budget select menu — customId order_budget:ticketId */
   ORDER_BUDGET: 'order_budget',
+  /** Submit Order button (under summary, before freelancers see the order) — customId submit_order:ticketId */
+  SUBMIT_ORDER: 'submit_order',
   /** Edit Order button (under summary) — customId edit_order:ticketId */
   EDIT_ORDER: 'edit_order',
   /** Edit Order modal submit — customId edit_order_modal:ticketId */
@@ -117,6 +119,9 @@ export const ORDER_QUESTION_KEYS = [
   'extra_details',  // 7. Would you like to add any more details?
   'budget',         // 8. What is your budget? (Select Menu)
 ];
+
+/** Answers an order needs before it can be submitted to freelancers (owner's decision 2026-10-27). */
+export const REQUIRED_ORDER_FIELDS = ['need', 'deadline', 'size', 'theme', 'version', 'budget'];
 
 /** Budget options for order dialog step 8 (Select Menu values). */
 // Euros, same currency as soucampus.online (owner's decision 2026-10-25). Values are unchanged,

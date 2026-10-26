@@ -12,7 +12,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
 } from 'discord.js';
-import { PREFIX, TICKET_TYPES, ORDER_BUDGET_OPTIONS, APPLICATION_FIELDS } from '../constants.js';
+import { PREFIX, TICKET_TYPES, ORDER_BUDGET_OPTIONS, APPLICATION_FIELDS, REQUIRED_ORDER_FIELDS } from '../constants.js';
 import { getSetting } from '../core/GuildConfig.js';
 import { estimateOrder, formatEstimate } from '../utils/pricing.js';
 
@@ -189,15 +189,35 @@ export function editOrderButtonRow(ticketId) {
 }
 
 /**
- * Full order summary payload: embed + Edit Order button (for posting or interaction.update).
+ * Full order summary payload. Before submitting: Edit Order + Submit order. After: Edit Order only.
  * @param {{ field_name: string, field_value: string }[]} fields
  * @param {string} ticketId
+ * @param {{ submitted?: boolean }} [options]
  */
-export function getOrderSummaryPayload(fields, ticketId) {
+export function getOrderSummaryPayload(fields, ticketId, { submitted = true } = {}) {
+  const row = editOrderButtonRow(ticketId);
+  if (!submitted) {
+    row.addComponents(
+      new ButtonBuilder().setCustomId(`${PREFIX.SUBMIT_ORDER}:${ticketId}`).setLabel('Submit order').setStyle(ButtonStyle.Success)
+    );
+  }
   return {
+    content: submitted
+      ? '✅ Order submitted — freelancers can now send quotes.'
+      : 'Check your order. When everything is right, press **Submit order** — only then freelancers will see it.',
     embeds: [orderSummaryEmbed(fields)],
-    components: [editOrderButtonRow(ticketId)],
+    components: [row],
   };
+}
+
+/**
+ * Required answers still empty, as human labels — for the Submit refusal.
+ * @param {{ field_name: string, field_value: string }[]} fields
+ * @returns {string[]}
+ */
+export function missingOrderFields(fields) {
+  const filled = new Set(fields.filter((f) => (f.field_value ?? '').trim()).map((f) => f.field_name));
+  return REQUIRED_ORDER_FIELDS.filter((k) => !filled.has(k)).map((k) => ORDER_FIELD_LABELS[k] ?? k);
 }
 
 /** Refusal when the client tries to edit an order that a freelancer already priced and took. */
@@ -249,7 +269,7 @@ export function buildOrderForm1Modal(ticketId, fields = []) {
       .setLabel(labels[key] || key)
       .setStyle(key === 'reference_urls' ? TextInputStyle.Paragraph : TextInputStyle.Short)
       .setValue((valueByKey[key] || '').slice(0, 4000))
-      .setRequired(key === 'need');
+      .setRequired(REQUIRED_ORDER_FIELDS.includes(key));
     modal.addComponents(new ActionRowBuilder().addComponents(input));
   });
   return modal;
@@ -274,7 +294,7 @@ export function buildOrderForm2Modal(ticketId, fields) {
       .setLabel(labels[key] || key)
       .setStyle(key === 'extra_details' ? TextInputStyle.Paragraph : TextInputStyle.Short)
       .setValue((valueByKey[key] || '').slice(0, 4000))
-      .setRequired(false);
+      .setRequired(REQUIRED_ORDER_FIELDS.includes(key));
     modal.addComponents(new ActionRowBuilder().addComponents(input));
   });
   return modal;
@@ -318,7 +338,7 @@ export function buildEditOrderModal(ticketId, fields) {
       .setLabel(labels[key] || key)
       .setStyle(key === 'reference_urls' ? TextInputStyle.Paragraph : TextInputStyle.Short)
       .setValue((valueByKey[key] || '').slice(0, 4000))
-      .setRequired(key === 'need');
+      .setRequired(REQUIRED_ORDER_FIELDS.includes(key));
     return new ActionRowBuilder().addComponents(input);
   });
   modal.addComponents(...rows);
@@ -332,11 +352,13 @@ export function buildEditOrderModal(ticketId, fields) {
  * @param {{ field_name: string, field_value: string }[]} fields
  * @returns {EmbedBuilder}
  */
-export function orderSummaryEmbedForFreelancers(fields) {
+export function orderSummaryEmbedForFreelancers(fields, clientId) {
+  // The client is shown on purpose (owner's decision 2026-10-27): the quote channel is named
+  // after them anyway, and on one server everyone sees each other — pretending otherwise misleads.
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setTitle('Order — request for quote')
-    .setDescription('Submit a quote, send a message, or decline.')
+    .setDescription((clientId ? `Client: <@${clientId}>\n` : '') + 'Submit a quote, send a message, or decline.')
     .setTimestamp();
   addOrderFields(embed, fields);
   return embed;

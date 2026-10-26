@@ -21,7 +21,7 @@ test('a form untouched for 48h gets one reminder', async () => {
   const s = abandoned('g-hyg-remind', 49);
   await sweepAbandonedForms(s.discord);
   await sweepAbandonedForms(s.discord);
-  const reminders = s.channel.sent.filter((m) => /not finished/.test(m.content ?? ''));
+  const reminders = s.channel.sent.filter((m) => /not submitted/.test(m.content ?? ''));
   assert.equal(reminders.length, 1, 'reminded once, not on every sweep');
   assert.match(reminders[0].content, /<@alice>/);
   assert.equal(getTicketById(s.ticketId).status, 'form');

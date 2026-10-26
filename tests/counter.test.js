@@ -63,5 +63,5 @@ test('editing the order after the quote channel exists tells the freelancers', a
   const update = s.quoteChannel.sent.at(-1);
   assert.match(update.content, /updated the order/i);
   assert.match(JSON.stringify(update.embeds[0].data), /A bigger castle/);
-  assert.doesNotMatch(JSON.stringify(update.embeds[0].data), /Alice/, 'still no client name for freelancers');
+  assert.match(JSON.stringify(update.embeds[0].data), new RegExp('<@' + s.client.id + '>'), 'freelancers see who the client is (owner decision 2026-10-27)');
 });

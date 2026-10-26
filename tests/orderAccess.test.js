@@ -18,22 +18,21 @@ function setup(guildId) {
 
 const as = (s, member, extra = {}) => fakeInteraction({ client: s.discord, member, guild: s.guild, ...extra });
 
-test('picking a budget finishes the form once; a second pick is refused', async () => {
+test('the budget can be changed before submitting, not after', async () => {
   const guild = fakeGuild({ id: 'g-access-budget' });
   const client = fakeMember(guild);
   const ticketId = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: fakeChannel(guild).id, inForm: true });
   const s = { guild, discord: fakeClient() };
 
-  const first = as(s, client, { values: ['100-500'] });
-  await handleOrderBudgetSelect(first, ['order_budget', ticketId]);
-  assert.equal(answerKind(first), 'update');
-  assert.equal(getTicketById(ticketId).status, 'open');
+  await handleOrderBudgetSelect(as(s, client, { values: ['100-500'] }), ['order_budget', ticketId]);
+  await handleOrderBudgetSelect(as(s, client, { values: ['1000+'] }), ['order_budget', ticketId]);
+  assert.equal(getTicketFields(ticketId).find((f) => f.field_name === 'budget').field_value, '1000+');
+  assert.equal(getTicketById(ticketId).status, 'form', 'still not submitted');
 
-  const second = as(s, client, { values: ['1000+'] });
-  await handleOrderBudgetSelect(second, ['order_budget', ticketId]);
-  assert.equal(answerKind(second), 'reply');
-  const budget = getTicketFields(ticketId).find((f) => f.field_name === 'budget');
-  assert.equal(budget.field_value, '100-500');
+  const submitted = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: fakeChannel(guild).id });
+  const late = as(s, client, { values: ['<100'] });
+  await handleOrderBudgetSelect(late, ['order_budget', submitted]);
+  assert.equal(answerKind(late), 'reply');
 });
 
 test('only the client can open Edit Order', async () => {

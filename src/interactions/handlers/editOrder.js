@@ -20,7 +20,8 @@ export async function handleEditOrder(interaction, parts) {
     return;
   }
   if (!(await ensureTicketClient(interaction, ticket))) return;
-  if (ticket.status !== STATUS.OPEN) {
+  // Before submitting (form) and while collecting quotes (open); not once a freelancer took it.
+  if (![STATUS.FORM, STATUS.OPEN].includes(ticket.status)) {
     await interaction.reply({ content: EDIT_CLOSED_TEXT, flags: MessageFlags.Ephemeral });
     return;
   }

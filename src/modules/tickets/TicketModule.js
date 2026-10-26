@@ -53,7 +53,7 @@ import { attachTranscripts } from './Transcript.js';
 import { handleSiteConsent } from '../site/consent.js';
 import { ensurePanel } from '../../utils/panel.js';
 import { PREFIX } from '../../constants.js';
-import { recoverPendingQuoteChannels } from './flows/OrderFlow.js';
+import { recoverPendingQuoteChannels, handleSubmitOrder } from './flows/OrderFlow.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -116,6 +116,7 @@ export function registerTicketModule(client) {
   registerHandler(PREFIX.ORDER_FORM_2, handleOrderForm2Button);
   registerHandler(PREFIX.ORDER_FORM_2_MODAL, handleOrderForm2ModalSubmit);
   registerHandler(PREFIX.ORDER_BUDGET, handleOrderBudget);
+  registerHandler(PREFIX.SUBMIT_ORDER, handleSubmitOrder);
   registerHandler(PREFIX.EDIT_ORDER, handleEditOrder);
   registerHandler(PREFIX.EDIT_ORDER_MODAL, handleEditOrderModal);
   registerHandler(PREFIX.SUBMIT_QUOTE, handleSubmitQuote);

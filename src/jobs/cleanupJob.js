@@ -61,7 +61,7 @@ export async function sweepAbandonedForms(client, now = Date.now()) {
         const closeAt = Math.floor((now + FORM_CLOSE_AFTER_REMIND_MS) / 1000);
         const channel = await client.channels.fetch(ticket.client_channel_id).catch(() => null);
         await channel?.send(
-          `<@${ticket.client_id}> your order form is not finished yet — click **Fill order form** above. ` +
+          `<@${ticket.client_id}> your order is not submitted yet — finish the form and press **Submit order** above. ` +
             `If it stays unfinished, this ticket closes <t:${closeAt}:R>.`
         );
         logger.info('Abandoned form reminded', { ticketId: ticket.id });

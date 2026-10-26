@@ -35,7 +35,7 @@ export async function handleEditOrderModal(interaction, parts) {
   }
   // A modal is its own door: re-check who submits it, the check on the button does not carry over.
   if (!(await ensureTicketClient(interaction, ticket))) return;
-  if (ticket.status !== STATUS.OPEN) {
+  if (![STATUS.FORM, STATUS.OPEN].includes(ticket.status)) {
     await interaction.reply({ content: EDIT_CLOSED_TEXT, flags: MessageFlags.Ephemeral });
     return;
   }
@@ -47,7 +47,7 @@ export async function handleEditOrderModal(interaction, parts) {
       if (key === 'deadline') warning = deadlineWarning(value, updateTicketDeadline(ticketId, value));
     }
     const fields = getTicketFields(ticketId);
-    const payload = getOrderSummaryPayload(fields, ticketId);
+    const payload = getOrderSummaryPayload(fields, ticketId, { submitted: ticket.status !== STATUS.FORM });
     await interaction.reply({ content: 'Order updated.' + warning, flags: MessageFlags.Ephemeral });
     const channel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
     if (channel) await channel.send(payload);
@@ -56,7 +56,7 @@ export async function handleEditOrderModal(interaction, parts) {
       const quoteChannel = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
       await quoteChannel?.send({
         content: '📝 The client updated the order:',
-        embeds: [orderSummaryEmbedForFreelancers(fields)],
+        embeds: [orderSummaryEmbedForFreelancers(fields, ticket.client_id)],
       });
     }
     await refreshOrderCard(interaction.client, ticketId);

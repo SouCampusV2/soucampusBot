@@ -21,6 +21,7 @@ import {
   buildOrderForm1Modal,
   buildOrderForm2Modal,
   orderForm2ButtonRow,
+  missingOrderFields,
   orderSummaryEmbedForFreelancers,
   freelancerActionButtonRows,
   EDIT_ORDER_MODAL_FIELDS,
@@ -176,7 +177,8 @@ export async function handleOrderForm2Modal(interaction, parts) {
 }
 
 /**
- * Handle budget select (step 8): save budget, show order summary + Edit Order button.
+ * Handle budget select (step 8): save budget, show the summary with Edit Order + Submit order.
+ * The order stays in the FORM stage — freelancers see nothing until the client submits.
  * @param {import('discord.js').StringSelectMenuInteraction} interaction
  * @param {string[]} parts - [ 'order_budget', ticketId ]
  */
@@ -186,42 +188,60 @@ export async function handleOrderBudgetSelect(interaction, parts) {
     await interaction.reply({ content: 'Invalid ticket.', flags: MessageFlags.Ephemeral });
     return;
   }
-  if (!(await ensureTicketClient(interaction, getTicketById(ticketId)))) return;
+  const ticket = getTicketById(ticketId);
+  if (!(await ensureTicketClient(interaction, ticket))) return;
+  if (ticket.status !== STATUS.FORM) {
+    await interaction.reply({ content: 'This order is already submitted.', flags: MessageFlags.Ephemeral });
+    return;
+  }
   const value = interaction.values?.[0] || '';
   if (!value) {
     await interaction.reply({ content: 'Please select a budget.', flags: MessageFlags.Ephemeral });
     return;
   }
-  // form → open. Only the first pick wins, so the quote channel is scheduled exactly once.
-  if (!transitionTicket(ticketId, STATUS.OPEN)) {
-    await interaction.reply({ content: 'Order form is already complete.', flags: MessageFlags.Ephemeral });
+  saveTicketField(ticketId, ORDER_QUESTION_KEYS[7], value);
+  await interaction.update(getOrderSummaryPayload(getTicketFields(ticketId), ticketId, { submitted: false }));
+  logger.info('Order summary shown, waiting for submit', { ticketId });
+}
+
+/**
+ * Handle Submit order (STEP 3 → 4): check required answers, form → open, quote channel now.
+ * Replaces the old "quote channel 60 seconds after the summary" timer: the client decides when
+ * the order is ready (owner's decision 2026-10-27).
+ * @param {import('discord.js').ButtonInteraction} interaction
+ * @param {string[]} parts - [ 'submit_order', ticketId ]
+ */
+export async function handleSubmitOrder(interaction, parts) {
+  const ticketId = parts[1];
+  const ticket = ticketId ? getTicketById(ticketId) : undefined;
+  if (!(await ensureTicketClient(interaction, ticket))) return;
+  const fields = getTicketFields(ticketId);
+  const missing = missingOrderFields(fields);
+  if (missing.length) {
+    await interaction.reply({
+      content: `Please fill in before submitting: **${missing.join('**, **')}** — use **Edit Order** (or **Fill order form**).`,
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
-  saveTicketField(ticketId, ORDER_QUESTION_KEYS[7], value);
-  const fields = getTicketFields(ticketId);
-  await interaction.update(getOrderSummaryPayload(fields, ticketId));
-  logger.info('Order dialog completed, summary shown', { ticketId });
-
-  // STEP 4: after 60s create freelancer (quote) channel if not already created.
-  scheduleQuoteChannelCreation(interaction.client, ticketId);
-}
-
-/** Delay before creating quote channel (no edit = proceed). */
-const QUOTE_CHANNEL_DELAY_MS = 60_000;
-
-/**
- * Schedule creation of freelancer quote channel 60s after summary (STEP 4).
- * Persists the due time so a restart within the window can recover the timer.
- * @param {import('discord.js').Client} client
- * @param {string} ticketId
- */
-export function scheduleQuoteChannelCreation(client, ticketId) {
-  setQuoteChannelDueAt(ticketId, Date.now() + QUOTE_CHANNEL_DELAY_MS);
-  // unref: the gateway connection keeps the bot alive; this timer alone must not (tests, shutdown).
-  setTimeout(() => createQuoteChannelForTicket(client, ticketId), QUOTE_CHANNEL_DELAY_MS).unref();
+  // The transition is the gate: a double click finds the order already open.
+  if (!transitionTicket(ticketId, STATUS.OPEN)) {
+    await interaction.reply({ content: 'This order is already submitted.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  try {
+    await interaction.update(getOrderSummaryPayload(fields, ticketId, { submitted: true }));
+    await createQuoteChannelForTicket(interaction.client, ticketId);
+    logger.info('Order submitted', { ticketId });
+  } catch (err) {
+    logger.error('submit_order failed', { ticketId, error: err.message });
+    await replyError(interaction, 'Your order is submitted, but opening it to freelancers failed — a manager will check.');
+  }
 }
 
 /**
+ * Legacy: orders from before Submit order (≤ 2026-10-27) had a 60-second timer stored in
+ * quote_channel_due_at. On startup, finish any that were still pending. New orders never set it.
  * On startup, re-arm any pending quote-channel timers that were lost on the last shutdown.
  * Overdue tickets are created immediately; others are rescheduled for their remaining time.
  * @param {import('discord.js').Client} client
@@ -246,7 +266,7 @@ export function recoverPendingQuoteChannels(client) {
 }
 
 /**
- * Create quote channel in QUOTES category; post order embed (no client name) and 3 buttons.
+ * Create quote channel in QUOTES category; post the order embed (with the client) and 3 buttons.
  * @param {import('discord.js').Client} client
  * @param {string} ticketId
  */
@@ -286,7 +306,7 @@ export async function createQuoteChannelForTicket(client, ticketId) {
     setQuoteChannelDueAt(ticketId, null); // timer fulfilled — clear so recovery skips it
     const fields = getTicketFields(ticketId);
     await channel.send({
-      embeds: [orderSummaryEmbedForFreelancers(fields)],
+      embeds: [orderSummaryEmbedForFreelancers(fields, ticket.client_id)],
       components: freelancerActionButtonRows(ticketId),
     });
     logger.info('Quote channel created', { ticketId, channelId: channel.id });

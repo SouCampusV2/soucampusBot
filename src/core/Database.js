@@ -88,7 +88,7 @@ function runMigrations(db) {
   ).run();
 
   const guildColumns = db.prepare('PRAGMA table_info(guild_config)').all().map((c) => c.name);
-  for (const column of ['terms_url', 'privacy_url', 'panel_banner_url', 'category_help', 'category_applications', 'showcase_webhook_id', 'showcase_reactions', 'category_staff', 'channel_staff_announcements', 'channel_staff_chat', 'channel_announcements', 'announce_webhook_id', 'channel_premade', 'premade_webhook_id', 'channel_free', 'free_webhook_id', 'channel_rules', 'rules_message_id', 'rules_image_url']) {
+  for (const column of ['terms_url', 'privacy_url', 'panel_banner_url', 'category_help', 'category_applications', 'showcase_webhook_id', 'showcase_reactions', 'category_staff', 'channel_staff_announcements', 'channel_staff_chat', 'channel_announcements', 'announce_webhook_id', 'channel_premade', 'premade_webhook_id', 'channel_free', 'free_webhook_id', 'channel_rules', 'rules_message_id', 'rules_image_url', 'notify_target']) {
     if (!guildColumns.includes(column)) {
       db.exec(`ALTER TABLE guild_config ADD COLUMN ${column} TEXT`);
       logger.info('Migration: added column', { table: 'guild_config', column });

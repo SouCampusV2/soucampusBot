@@ -40,6 +40,7 @@ import { getManagerRole, getFreelancerRole, ensureTicketClient } from '../../../
 import { tryConsumeTicketCreate, isTicketCreateLimited } from '../../../utils/rateLimit.js';
 import { replyError } from '../../../utils/replies.js';
 import { logger } from '../../../utils/logger.js';
+import { pingStaff } from '../../../utils/notify.js';
 import { ChannelType, MessageFlags, PermissionFlagsBits } from 'discord.js';
 
 const ephemeral = (content) => ({ content, flags: MessageFlags.Ephemeral });
@@ -373,6 +374,7 @@ export async function createQuoteChannelForTicket(client, ticketId) {
     setQuoteChannelDueAt(ticketId, null); // timer fulfilled — clear so recovery skips it
     await channel.send(orderBriefPayload(ticket, getTicketFields(ticketId)));
     await forwardReferences(clientChannel, channel, ticketId);
+    await pingStaff(channel, 'a new order is open for quotes.');
     logger.info('Quote channel created', { ticketId, channelId: channel.id });
   } catch (err) {
     logger.error('createQuoteChannelForTicket failed', { ticketId, error: err.message });

@@ -44,6 +44,7 @@ export const SETTINGS = {
   channel_rules: { column: 'channel_rules', env: null },
   rules_message_id: { column: 'rules_message_id', env: null },
   rules_image_url: { column: 'rules_image_url', env: null },
+  notify_target: { column: 'notify_target', env: null },
 };
 
 /** In-memory cache: guildId -> config row. Invalidated on write. */

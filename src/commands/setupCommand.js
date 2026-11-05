@@ -15,6 +15,7 @@
  *   /setup panel           [channel]    — post the ticket panel, or update ours in place
  *   /setup links [terms] [privacy] [banner] — legal links and banner on the panel
  *   /setup log_channel     <channel>    — staff log: one line per ticket event
+ *   /setup notify          [who]        — person/role pinged in every new ticket and quote channel (empty = off)
  *   /setup site_channel <kind> <channel> [new_link] — webhook the website posts through:
  *                          portfolio / premade / free builds / announcements (one link per kind)
  *   /setup showcase_channel, announcements_channel — the same for one kind (older names, kept)
@@ -71,6 +72,9 @@ export const setupCommandData = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s.setName('log_channel').setDescription('Staff log channel: one line per ticket event')
       .addChannelOption((o) => o.setName('channel').setDescription('Text channel (staff only)').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+  .addSubcommand((s) =>
+    s.setName('notify').setDescription('Who gets pinged in every new ticket and quote channel')
+      .addMentionableOption((o) => o.setName('who').setDescription('A person or a role; leave empty to turn pings off')))
   .addSubcommand((s) =>
     s.setName('site_channel').setDescription('Channel the website posts to (gives a webhook link)')
       .addStringOption((o) =>
@@ -208,6 +212,24 @@ export async function handleSetupCommand(interaction) {
         });
         return;
       }
+      case 'notify': {
+        const who = interaction.options.getMentionable('who');
+        if (!who) {
+          setSetting(guildId, 'notify_target', null);
+          await interaction.reply({ content: '✅ New channels will not ping anyone.', flags: MessageFlags.Ephemeral });
+          return;
+        }
+        const isRole = interaction.options.getRole('who') != null;
+        setSetting(guildId, 'notify_target', `${isRole ? 'role' : 'user'}:${who.id}`);
+        const mention = isRole ? `<@&${who.id}>` : `<@${who.id}>`;
+        await interaction.reply({
+          content: `✅ ${mention} will be pinged in every new ticket and quote channel.`
+            + (isRole ? ' The role must be mentionable, or the bot needs "Mention all roles".' : ''),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        });
+        return;
+      }
       case 'manager_role':
       case 'freelancer_role': {
         const key = sub === 'manager_role' ? 'role_manager' : 'role_freelancer';
@@ -302,6 +324,9 @@ export async function handleSetupCommand(interaction) {
           line('Panel banner', cfg.panel_banner_url, 'text'),
           line('Manager role', cfg.role_manager, 'role'),
           line('Freelancer role', cfg.role_freelancer, 'role'),
+          cfg.notify_target
+            ? `• **Pinged in new channels**: ${cfg.notify_target.startsWith('role:') ? `<@&${cfg.notify_target.slice(5)}>` : `<@${cfg.notify_target.slice(5)}>`}`
+            : line('Pinged in new channels', null),
           line('Brand color', cfg.brand_color, 'text'),
         ].join('\n');
         await interaction.reply({ content: `**Current configuration**\n${text}\n\n_Unset values fall back to .env if present._`, flags: MessageFlags.Ephemeral });

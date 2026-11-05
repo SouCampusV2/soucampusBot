@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS guild_config (
   channel_rules TEXT,
   rules_message_id TEXT,
   rules_image_url TEXT,
+  notify_target TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

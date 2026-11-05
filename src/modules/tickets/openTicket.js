@@ -10,6 +10,7 @@ import { getManagerRole } from '../../utils/permissions.js';
 import { getSetting } from '../../core/GuildConfig.js';
 import { createTicket, getTicketById } from './TicketRepository.js';
 import { ticketWelcomePayload } from '../../embeds/templates.js';
+import { pingStaff } from '../../utils/notify.js';
 
 /** Answer for a server where /setup was not run yet. */
 export const NOT_CONFIGURED_TEXT = 'This server is not configured yet. An admin needs to run `/setup active_orders` first.';
@@ -51,5 +52,7 @@ export async function openTicketChannel(guild, user, type) {
   const { id } = createTicket({ type, guildId: guild.id, clientId: user.id, clientChannelId: channel.id });
   const ticket = getTicketById(id);
   await channel.send(ticketWelcomePayload(ticket));
+  const label = { order: 'order', help: 'support', application: 'team application' }[type] || type;
+  await pingStaff(channel, `new ${label} ticket #${ticket.number ?? ticket.id} from <@${user.id}>.`);
   return { channel, ticket };
 }

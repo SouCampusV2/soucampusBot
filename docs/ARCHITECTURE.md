@@ -36,7 +36,8 @@ src/modules/site/SiteBridge.js              мост на сайт: подпис
 src/modules/site/consent.js                 кнопки согласия клиента (работа / отзыв на сайте)
 src/modules/tickets/Transcript.js           транскрипт переписки при закрытии (слушает status)
 src/interactions/handlers/   один файл = один префикс customId
-src/commands/                /setup, /invite, /orders, /stats, /rules (данные команды + обработчик)
+src/commands/                /setup, /invite, /orders, /stats, /rules, /take (данные команды + обработчик)
+src/utils/notify.js          pingStaff — пинг из `/setup notify` (notify_target = "user:<id>"/"role:<id>") в новом тикете и канале квот
 src/embeds/templates.js      все эмбеды, кнопки, модалки
 src/jobs/deadlineJob.js      cron 09:00 BOT_TIMEZONE: напоминания о дедлайне
 src/jobs/cleanupJob.js       раз в 10 минут: удалить каналы закрытых тикетов + гигиена брошенных форм
@@ -170,6 +171,7 @@ handler(interaction, parts)
 | Оплата, завершение, дедлайн (кнопка И модалка), `/invite` | менеджер | `isManagerOrAdmin`: Administrator или роль из `/setup` | 🟡 тест есть |
 | `/setup` (в т.ч. rules, announcements_channel) | админ | `setDefaultMemberPermissions(Administrator)` | 🟢 |
 | `/rules` | все; ответ видит только спросивший | — (только чтение) | 🟡 тест есть |
+| `/take` | менеджер; заказ `open`, в канале тикета или квот | `isManagerOrAdmin` + `acceptProposal` (переход open → assigned решает гонку) | 🟡 тест есть |
 
 **Менеджер по имени роли.** Роль «Manager»/«Admin» по имени работает, только
 пока роль менеджера не задана через `/setup`. Как только задана — двойник с

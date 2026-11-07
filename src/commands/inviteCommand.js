@@ -5,6 +5,7 @@
 import { MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { getTicketByChannelId } from '../modules/tickets/TicketRepository.js';
 import { isManagerOrAdmin } from '../utils/permissions.js';
+import { addTicketMember } from '../modules/clients/ClientTiers.js';
 import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
 
@@ -45,6 +46,8 @@ export async function handleInviteCommand(interaction) {
       ViewChannel: true,
       SendMessages: true,
     });
+    // Invited to the client's channel = a client of the order too (client tiers count them).
+    if (channel.id === ticket.client_channel_id && !user.bot) addTicketMember(ticket.id, user.id, interaction.user.id);
     await interaction.editReply({
       content: `✅ <@${user.id}> has been invited to this ticket.`,
     });

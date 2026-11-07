@@ -15,6 +15,7 @@
  *   /setup panel           [channel]    — post the ticket panel, or update ours in place
  *   /setup links [terms] [privacy] [banner] — legal links and banner on the panel
  *   /setup log_channel     <channel>    — staff log: one line per ticket event
+ *   /setup client_roles [client] [notable] [vip] — roles given after a paid order (see ClientTiers.js)
  *   /setup notify          [who]        — person/role pinged in every new ticket and quote channel (empty = off)
  *   /setup site_channel <kind> <channel> [new_link] — webhook the website posts through:
  *                          portfolio / premade / free builds / announcements (one link per kind)
@@ -72,6 +73,11 @@ export const setupCommandData = new SlashCommandBuilder()
   .addSubcommand((s) =>
     s.setName('log_channel').setDescription('Staff log channel: one line per ticket event')
       .addChannelOption((o) => o.setName('channel').setDescription('Text channel (staff only)').addChannelTypes(ChannelType.GuildText).setRequired(true)))
+  .addSubcommand((s) =>
+    s.setName('client_roles').setDescription('Roles for clients after paid orders: Client (1), Notable (5 + 500), VIP (10 + 1000)')
+      .addRoleOption((o) => o.setName('client').setDescription('First paid order'))
+      .addRoleOption((o) => o.setName('notable').setDescription('5+ paid orders and 500+ in total'))
+      .addRoleOption((o) => o.setName('vip').setDescription('10+ paid orders and 1000+ in total')))
   .addSubcommand((s) =>
     s.setName('notify').setDescription('Who gets pinged in every new ticket and quote channel')
       .addMentionableOption((o) => o.setName('who').setDescription('A person or a role; leave empty to turn pings off')))
@@ -212,6 +218,18 @@ export async function handleSetupCommand(interaction) {
         });
         return;
       }
+      case 'client_roles': {
+        const given = ['client', 'notable', 'vip'].filter((o) => interaction.options.getRole(o));
+        for (const option of given) setSetting(guildId, `role_${option}`, interaction.options.getRole(option).id);
+        await interaction.reply({
+          content: given.length
+            ? `✅ Saved: ${given.map((o) => `${o} → <@&${interaction.options.getRole(o).id}>`).join(', ')}. The bot role must be above these roles to give them.`
+            : 'Give at least one of: client, notable, vip.',
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        });
+        return;
+      }
       case 'notify': {
         const who = interaction.options.getMentionable('who');
         if (!who) {
@@ -324,6 +342,9 @@ export async function handleSetupCommand(interaction) {
           line('Panel banner', cfg.panel_banner_url, 'text'),
           line('Manager role', cfg.role_manager, 'role'),
           line('Freelancer role', cfg.role_freelancer, 'role'),
+          line('Client role (1 order)', cfg.role_client, 'role'),
+          line('Notable client role', cfg.role_notable, 'role'),
+          line('VIP client role', cfg.role_vip, 'role'),
           cfg.notify_target
             ? `• **Pinged in new channels**: ${cfg.notify_target.startsWith('role:') ? `<@&${cfg.notify_target.slice(5)}>` : `<@${cfg.notify_target.slice(5)}>`}`
             : line('Pinged in new channels', null),

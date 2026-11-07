@@ -8,7 +8,8 @@ import { inviteCommandData, handleInviteCommand } from '../../commands/inviteCom
 import { ordersCommandData, handleOrdersCommand } from '../../commands/ordersCommand.js';
 import { statsCommandData, handleStatsCommand } from '../../commands/statsCommand.js';
 import { setupCommandData, handleSetupCommand } from '../../commands/setupCommand.js';
-import { takeCommandData, handleTakeCommand } from '../../commands/takeCommand.js';
+import { takeCommandData, handleTakeCommand, paylinkCommandData, handlePaylinkCommand } from '../../commands/takeCommand.js';
+import { attachClientTiers } from '../clients/ClientTiers.js';
 import { rulesCommandData, handleRulesCommand } from '../../commands/rulesCommand.js';
 import { handleCreateTicket } from '../../interactions/handlers/createTicket.js';
 import { handleSelectTicketType } from '../../interactions/handlers/selectTicketType.js';
@@ -87,7 +88,7 @@ async function postLegacyPanel(client) {
  * @param {import('discord.js').Client} client
  */
 async function registerSlashCommands(client) {
-  const commands = [inviteCommandData, setupCommandData, ordersCommandData, statsCommandData, rulesCommandData, takeCommandData];
+  const commands = [inviteCommandData, setupCommandData, ordersCommandData, statsCommandData, rulesCommandData, takeCommandData, paylinkCommandData];
   const guildId = process.env.GUILD_ID;
   try {
     if (guildId) {
@@ -113,6 +114,7 @@ export function registerTicketModule(client) {
   registerCommandHandler('stats', handleStatsCommand);
   registerCommandHandler('rules', handleRulesCommand);
   registerCommandHandler('take', handleTakeCommand);
+  registerCommandHandler('paylink', handlePaylinkCommand);
   registerHandler(PREFIX.CREATE_TICKET, handleCreateTicket);
   registerHandler(PREFIX.SELECT_TICKET_TYPE, handleSelectTicketType);
   registerHandler(PREFIX.CONFIRM_TICKET, handleConfirmTicket);
@@ -154,6 +156,7 @@ export function registerTicketModule(client) {
   attachOrderCard(client);
   attachStaffLog(client);
   attachTranscripts(client);
+  attachClientTiers(client);
   attachShowcaseReactions(client);
 
   client.once(Events.ClientReady, async () => {

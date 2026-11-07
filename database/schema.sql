@@ -103,6 +103,27 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
   FOREIGN KEY (conversation_id) REFERENCES conversations(id)
 );
 
+-- People a manager added to a ticket with /invite (a co-owner, the person who pays).
+-- They count as clients of the order for client tiers.
+CREATE TABLE IF NOT EXISTS ticket_members (
+  ticket_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  added_by TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (ticket_id, user_id)
+);
+
+-- One row per client per paid order: what client tiers (Client / Notable / VIP) count.
+-- Written when a manager confirms payment; amount is the accepted quote's number.
+CREATE TABLE IF NOT EXISTS client_payments (
+  guild_id TEXT,
+  user_id TEXT NOT NULL,
+  ticket_id TEXT NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (ticket_id, user_id)
+);
+
 -- Per-server (guild) configuration. Set via the /setup slash command.
 -- Any value left NULL falls back to the matching .env variable (single-server mode).
 CREATE TABLE IF NOT EXISTS guild_config (
@@ -137,6 +158,9 @@ CREATE TABLE IF NOT EXISTS guild_config (
   rules_message_id TEXT,
   rules_image_url TEXT,
   notify_target TEXT,
+  role_client TEXT,
+  role_notable TEXT,
+  role_vip TEXT,
   updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 

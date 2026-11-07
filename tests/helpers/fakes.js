@@ -47,6 +47,9 @@ export function fakeMember(guild, { id = nextId(), roles = [], admin = false, na
       async add(roleId) {
         member.roles.cache.set(roleId, guild.roles.cache.get(roleId) ?? { id: roleId });
       },
+      async remove(roleId) {
+        member.roles.cache.delete(roleId);
+      },
     },
     permissions: { has: (perm) => admin && perm === PermissionFlagsBits.Administrator },
   };

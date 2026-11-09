@@ -47,7 +47,10 @@ export async function handleConfirmPayment(interaction, parts) {
     });
     const clientChannel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
     if (clientChannel) {
-      await clientChannel.send('Payment has been confirmed. Your freelancer will begin work shortly.');
+      // One message, no promise of when work starts: the builder may start days later (order #11).
+      await clientChannel.send(
+        '✅ **Payment received, thank you!** Your order is confirmed. Your builder will keep you updated right here in this channel.'
+      );
     }
     const freelancerChannel = await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null);
     if (freelancerChannel) {

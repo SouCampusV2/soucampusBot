@@ -11,6 +11,7 @@
  * Roles are set with /setup client_roles; a tier without a role is skipped.
  */
 
+import { EmbedBuilder } from 'discord.js';
 import { run, get, query } from '../../core/Database.js';
 import { getSetting } from '../../core/GuildConfig.js';
 import { ticketEvents } from '../tickets/events.js';
@@ -20,10 +21,29 @@ import { logger } from '../../utils/logger.js';
 
 /** Highest first. */
 export const TIERS = [
-  { key: 'vip', label: 'VIP client', setting: 'role_vip', orders: 10, total: 1000 },
-  { key: 'notable', label: 'Notable client', setting: 'role_notable', orders: 5, total: 500 },
-  { key: 'client', label: 'Client', setting: 'role_client', orders: 1, total: 0 },
+  { key: 'vip', label: 'VIP Client', setting: 'role_vip', orders: 10, total: 1000, perk: null },
+  { key: 'notable', label: 'Notable Client', setting: 'role_notable', orders: 5, total: 500, perk: null },
+  { key: 'client', label: 'Client', setting: 'role_client', orders: 1, total: 0, perk: '🎁 **5% off your next order**: just mention it when you open your next ticket.' },
 ];
+
+/**
+ * Congratulations card for a new tier role. The role mention shows the role; it does not ping.
+ * @param {string} userId
+ * @param {object} tier - a TIERS entry
+ * @param {string} roleId
+ */
+export function tierUpPayload(userId, tier, roleId) {
+  const lines = [
+    `Thank you for trusting us with your build, <@${userId}>! 💚`,
+    `You now have the <@&${roleId}> role on this server.`,
+  ];
+  if (tier.perk) lines.push('', tier.perk);
+  const embed = new EmbedBuilder()
+    .setColor(0x7ccf00)
+    .setTitle(`🎉 Congratulations, you're now a ${tier.label}!`)
+    .setDescription(lines.join('\n'));
+  return { content: `<@${userId}>`, embeds: [embed], allowedMentions: { users: [userId] } };
+}
 
 /**
  * The first number in a price text: "$480" → 480, "€1,200.50" → 1200.5, "450-550" → 450.
@@ -124,12 +144,19 @@ export async function updateClientTiers(client, ticketId) {
   const channel = await client.channels.fetch(ticket.client_channel_id).catch(() => null);
   const guild = channel?.guild;
   if (!guild) return;
+  if (!TIERS.some((t) => getSetting(guild.id, t.setting))) {
+    // Counted anyway: once roles are set, the next paid order gives the right tier.
+    logger.warn('Client tier roles not configured', { guildId: guild.id, ticketId });
+    const quoteChannel = ticket.freelancer_channel_id ? await client.channels.fetch(ticket.freelancer_channel_id).catch(() => null) : null;
+    await quoteChannel?.send('⚠️ Client roles are not set, so no role was given. Run `/setup client_roles`.').catch(() => {});
+    return;
+  }
   for (const userId of clients) {
     const member = await guild.members.fetch(userId).catch(() => null);
     if (!member) continue;
     try {
       const given = await applyTierRole(member);
-      if (given) await channel.send({ content: `🎖️ <@${userId}> is now a **${given.label}**. Thank you for building with us!`, allowedMentions: { parse: [] } });
+      if (given) await channel.send(tierUpPayload(userId, given, getSetting(guild.id, given.setting)));
     } catch (err) {
       logger.warn('Client tier role failed — is the bot role above the tier roles?', { ticketId, userId, error: err.message });
     }

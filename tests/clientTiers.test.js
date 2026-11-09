@@ -57,7 +57,10 @@ test('reaching Notable swaps the Client role for the Notable one', async () => {
   await updateClientTiers(s.discord, s.ticketId); // 5th order, 400 + 200 = 600
   assert.ok(s.author.roles.cache.has(s.roles.notable.id));
   assert.ok(!s.author.roles.cache.has(s.roles.client.id));
-  assert.ok(s.clientChannel.sent.some((m) => m.content?.includes('Notable client')));
+  const card = s.clientChannel.sent.at(-1).embeds[0].toJSON();
+  assert.match(card.title, /Notable Client/);
+  assert.ok(card.description.includes(`<@&${s.roles.notable.id}>`), 'card shows the role');
+  assert.doesNotMatch(card.description, /5% off/, 'the discount is for the Client tier');
 });
 
 test('/paylink: only managers; posts a Pay link button in the client channel', async () => {
@@ -103,4 +106,25 @@ test('/paylink: the payer option mentions the payer and counts them as a client'
   assert.deepEqual(msg.allowedMentions, { users: [s.payer.id] });
   await updateClientTiers(s.discord, s.ticketId);
   assert.ok(s.payer.roles.cache.has(s.roles.client.id), 'payer counted as a client');
+});
+
+test('first paid order: congratulations card with the role and 5% off the next order', async () => {
+  const s = setup('g-tier-card');
+  await updateClientTiers(s.discord, s.ticketId);
+  const card = s.clientChannel.sent.find((m) => m.embeds?.length).embeds[0].toJSON();
+  assert.match(card.title, /Client/);
+  assert.ok(card.description.includes(`<@&${s.roles.client.id}>`));
+  assert.match(card.description, /5% off your next order/);
+});
+
+test('no tier roles configured: order still counted, staff warned in the quote channel', async () => {
+  const guild = fakeGuild({ id: 'g-tier-unset' });
+  const author = fakeMember(guild);
+  const builder = fakeMember(guild);
+  const clientChannel = fakeChannel(guild);
+  const quoteChannel = fakeChannel(guild);
+  const ticketId = seedOrder({ guildId: guild.id, clientId: author.id, clientChannelId: clientChannel.id, freelancerChannelId: quoteChannel.id, assignedFreelancerId: builder.id, paid: true });
+  await updateClientTiers(fakeClient([clientChannel, quoteChannel]), ticketId);
+  assert.equal(clientStats(guild.id, author.id).orders, 1);
+  assert.match(quoteChannel.sent.at(-1).content, /client_roles/);
 });

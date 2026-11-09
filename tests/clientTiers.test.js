@@ -66,7 +66,7 @@ test('/paylink: only managers; posts a Pay link button in the client channel', a
   const run1 = (member, opts) => {
     const i = fakeInteraction({ client: s.discord, member, guild: s.guild, channel: s.clientChannel });
     i.channelId = s.clientChannel.id;
-    i.options = { getString: (n) => opts[n] ?? null };
+    i.options = { getString: (n) => opts[n] ?? null, getUser: () => null };
     return i;
   };
   const opts = { link: 'https://www.paypal.com/invoice/p/#ABC', amount: '$240' };
@@ -86,4 +86,21 @@ test('/paylink: only managers; posts a Pay link button in the client channel', a
   const button = msg.components[0].toJSON().components[0];
   assert.equal(button.url, opts.link);
   assert.match(button.label, /\$240/);
+});
+
+test('/paylink: the payer option mentions the payer and counts them as a client', async () => {
+  const s = setup('g-paylink-payer');
+  const manager = fakeMember(s.guild, { admin: true });
+  const i = fakeInteraction({ client: s.discord, member: manager, guild: s.guild, channel: s.clientChannel });
+  i.channelId = s.clientChannel.id;
+  i.options = {
+    getString: (n) => ({ link: 'https://www.paypal.com/invoice/p/#X', amount: '$240' })[n] ?? null,
+    getUser: (n) => (n === 'payer' ? s.payer.user : null),
+  };
+  await handlePaylinkCommand(i);
+  const msg = s.clientChannel.sent.at(-1);
+  assert.match(msg.content, new RegExp(`<@${s.payer.id}>`));
+  assert.deepEqual(msg.allowedMentions, { users: [s.payer.id] });
+  await updateClientTiers(s.discord, s.ticketId);
+  assert.ok(s.payer.roles.cache.has(s.roles.client.id), 'payer counted as a client');
 });

@@ -16,6 +16,7 @@ import { createProposal, acceptProposal } from '../modules/proposals/ProposalRep
 import { STATUS } from '../modules/tickets/TicketStatus.js';
 import { isManagerOrAdmin } from '../utils/permissions.js';
 import { quoteEmbed, confirmPaymentButtonRow } from '../embeds/templates.js';
+import { addTicketMember } from '../modules/clients/ClientTiers.js';
 import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
 
@@ -29,6 +30,7 @@ export const takeCommandData = new SlashCommandBuilder()
   .addUserOption((o) => o.setName('builder').setDescription('Who builds it (defaults to you)'))
   .addStringOption((o) => o.setName('payment_link').setDescription('PayPal / Wise invoice link — the client gets a Pay button').setMaxLength(512))
   .addStringOption((o) => o.setName('payment_amount').setDescription('What this link charges, e.g. $240 (50%) — defaults to the price').setMaxLength(100))
+  .addUserOption((o) => o.setName('payer').setDescription('Who pays (defaults to the client who opened the ticket)'))
   .toJSON();
 
 export const paylinkCommandData = new SlashCommandBuilder()
@@ -38,6 +40,7 @@ export const paylinkCommandData = new SlashCommandBuilder()
   .addStringOption((o) => o.setName('link').setDescription('PayPal / Wise invoice link (https://…)').setRequired(true).setMaxLength(512))
   .addStringOption((o) => o.setName('amount').setDescription('What it charges, e.g. $240 (second half)').setRequired(true).setMaxLength(100))
   .addStringOption((o) => o.setName('note').setDescription('A short note for the client').setMaxLength(500))
+  .addUserOption((o) => o.setName('payer').setDescription('Who pays (defaults to the client who opened the ticket)'))
   .toJSON();
 
 const LINK_RE = /^https:\/\/\S+$/;
@@ -51,6 +54,7 @@ const LINK_RE = /^https:\/\/\S+$/;
  * @param {string} [note]
  */
 export function paymentLinkPayload(clientId, link, amount, note = '') {
+  // clientId here is whoever pays (the payer option), the ticket author by default.
   const button = new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(link).setLabel(`Pay ${amount}`.slice(0, 80)).setEmoji('💳');
   return {
     content: `💳 <@${clientId}>, here is the invoice for **${amount}**.${note ? `\n${note}` : ''}\nOnce it's paid, a manager confirms it here.`,
@@ -60,6 +64,19 @@ export function paymentLinkPayload(clientId, link, amount, note = '') {
 }
 
 const ephemeral = (content) => ({ content, flags: MessageFlags.Ephemeral });
+
+/**
+ * Who pays: the payer option, else the ticket author. A payer who is not in the ticket yet is
+ * let into the client channel and counted as a client of the order (client tiers).
+ * @returns {Promise<string>} the payer's user id
+ */
+async function resolvePayer(interaction, ticket, clientChannel) {
+  const payer = interaction.options.getUser('payer');
+  if (!payer || payer.bot || payer.id === ticket.client_id) return ticket.client_id;
+  if (payer.id !== ticket.assigned_freelancer_id) addTicketMember(ticket.id, payer.id, interaction.user.id);
+  await clientChannel?.permissionOverwrites?.edit(payer.id, { ViewChannel: true, SendMessages: true });
+  return payer.id;
+}
 
 export async function handleTakeCommand(interaction) {
   if (!isManagerOrAdmin(interaction.member)) {
@@ -112,7 +129,10 @@ export async function handleTakeCommand(interaction) {
         embeds: [embed],
         allowedMentions: { users: [ticket.client_id] },
       });
-      if (paymentLink) await clientChannel.send(paymentLinkPayload(ticket.client_id, paymentLink, paymentAmount));
+      if (paymentLink) {
+        const payerId = await resolvePayer(interaction, ticket, clientChannel);
+        await clientChannel.send(paymentLinkPayload(payerId, paymentLink, paymentAmount));
+      }
     }
     const quoteChannel = ticket.freelancer_channel_id
       ? await interaction.client.channels.fetch(ticket.freelancer_channel_id).catch(() => null)
@@ -153,7 +173,9 @@ export async function handlePaylinkCommand(interaction) {
   await interaction.reply(ephemeral('✅ Payment link posted.'));
   try {
     const channel = await interaction.client.channels.fetch(ticket.client_channel_id).catch(() => null);
-    await channel?.send(paymentLinkPayload(ticket.client_id, link, amount, note));
+    if (!channel) return;
+    const payerId = await resolvePayer(interaction, ticket, channel);
+    await channel.send(paymentLinkPayload(payerId, link, amount, note));
     logger.info('Payment link posted', { ticketId: ticket.id, by: interaction.user.id });
   } catch (err) {
     logger.error('/paylink failed', { ticketId: ticket.id, error: err.message });

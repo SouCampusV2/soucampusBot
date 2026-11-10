@@ -38,6 +38,8 @@ confirmed by a manager → delivery → review.**
 - `/invite @user` for managers
 - `/take price:` for managers: take an order as its builder (or give it to one) without waiting for quotes
 - `/setup notify`: a person or role pinged in every new ticket and quote channel
+- Payment links: `/take payment_link:` or `/paylink` posts a Pay button (PayPal / Wise invoice) for the payer
+- Client tiers: Client / Notable / VIP roles after paid orders (`/setup client_roles`), with a congratulations card
 - Server rules as a card (`/setup rules`, edited in place) and `/rules` for anyone
 - Website → Discord: `/setup site_channel` gives the site a webhook for each
   channel it posts to (portfolio, premade, free builds, announcements); the bot
@@ -80,7 +82,7 @@ npm run check   # syntax check of every file
 src/core/                     client, database, per-server config, interaction router
 src/modules/tickets/          ticket module, repository, order flow
 src/interactions/handlers/    one file per button / modal
-src/commands/                 /setup, /invite, /orders, /stats, /rules, /take
+src/commands/                 /setup, /invite, /orders, /stats, /rules, /take, /paylink
 src/embeds/templates.js       all embeds, buttons and modals
 database/schema.sql           schema for a fresh database
 tests/                        node:test suites + fakes of discord.js objects

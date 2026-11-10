@@ -41,30 +41,69 @@ export async function ensureTicketClient(interaction, ticket) {
 }
 
 /**
- * Get the Manager role: by ROLE_MANAGER_ID from .env, or by name "Manager".
- * @param {import('discord.js').Guild} guild
- * @returns {import('discord.js').Role | undefined}
+ * Role ids saved for a setting. role_manager / role_freelancer may hold several ids separated
+ * by commas (e.g. Moderator + Commission Team); an old single id reads as a list of one.
+ * @param {string} guildId
+ * @param {'role_manager' | 'role_freelancer'} key
+ * @returns {string[]}
  */
-export function getManagerRole(guild) {
-  const id = getSetting(guild.id, 'role_manager');
-  if (id) return guild.roles.cache.get(id) ?? undefined;
-  return getRoleByName(guild, ROLES.MANAGER);
+export function roleIdsSetting(guildId, key) {
+  const raw = getSetting(guildId, key);
+  return raw ? raw.split(',').map((id) => id.trim()).filter(Boolean) : [];
+}
+
+/** Configured roles that still exist; with nothing configured, the role named `fallbackName`. */
+function rolesFor(guild, key, fallbackName) {
+  const ids = roleIdsSetting(guild.id, key);
+  if (!ids.length) {
+    const byName = getRoleByName(guild, fallbackName);
+    return byName ? [byName] : [];
+  }
+  return ids.map((id) => guild.roles.cache.get(id)).filter(Boolean);
 }
 
 /**
- * Get the Freelancer role: by ROLE_FREELANCER_ID from .env, or by name "Freelancer".
+ * Manager roles (/setup manager_role), or the role named "Manager" if none is set.
  * @param {import('discord.js').Guild} guild
- * @returns {import('discord.js').Role | undefined}
+ * @returns {import('discord.js').Role[]}
  */
-export function getFreelancerRole(guild) {
-  const id = getSetting(guild.id, 'role_freelancer');
-  if (id) return guild.roles.cache.get(id) ?? undefined;
-  return getRoleByName(guild, ROLES.FREELANCER);
+export function getManagerRoles(guild) {
+  return rolesFor(guild, 'role_manager', ROLES.MANAGER);
+}
+
+/**
+ * Builder roles (/setup freelancer_role), or the role named "Freelancer" if none is set.
+ * The first one is the main role: it is given when a team application is accepted.
+ * @param {import('discord.js').Guild} guild
+ * @returns {import('discord.js').Role[]}
+ */
+export function getBuilderRoles(guild) {
+  return rolesFor(guild, 'role_freelancer', ROLES.FREELANCER);
+}
+
+/**
+ * Builder roles that are not also manager roles — the ones to hide from or lock out of a
+ * channel without hiding it from managers.
+ * @param {import('discord.js').Guild} guild
+ * @returns {import('discord.js').Role[]}
+ */
+export function getBuilderOnlyRoles(guild) {
+  const managerIds = new Set(getManagerRoles(guild).map((r) => r.id));
+  return getBuilderRoles(guild).filter((r) => !managerIds.has(r.id));
+}
+
+/**
+ * True if the member has any builder role.
+ * @param {import('discord.js').GuildMember} member
+ */
+export function isBuilder(member) {
+  if (!member?.roles || !member.guild) return false;
+  return getBuilderRoles(member.guild).some((r) => member.roles.cache.has(r.id));
 }
 
 /**
  * Check if member is manager or admin — the ONLY place that decides manager access.
- * Manager = server Administrator permission, or the role set via /setup manager_role.
+ * Manager = server Administrator permission, or any role set via /setup manager_role.
  * Roles named "Manager"/"Admin" count only while no manager role is configured
  * (single-server legacy mode); once one is configured, a look-alike name grants nothing.
  * @param {import('discord.js').GuildMember} member
@@ -73,7 +112,7 @@ export function getFreelancerRole(guild) {
 export function isManagerOrAdmin(member) {
   if (!member?.roles) return false;
   if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
-  const configuredRoleId = member.guild ? getSetting(member.guild.id, 'role_manager') : null;
-  if (configuredRoleId) return member.roles.cache.has(configuredRoleId);
+  const configured = member.guild ? roleIdsSetting(member.guild.id, 'role_manager') : [];
+  if (configured.length) return configured.some((id) => member.roles.cache.has(id));
   return hasRole(member, ROLES.MANAGER) || hasRole(member, ROLES.ADMIN);
 }

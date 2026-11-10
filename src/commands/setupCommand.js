@@ -9,8 +9,8 @@
  *   /setup quotes          <category>   — category for freelancer quote channels
  *   /setup archived        <category>   — category completed tickets are moved to
  *   /setup reviews         <channel>    — channel where reviews are posted
- *   /setup manager_role    <role>       — the Manager role
- *   /setup freelancer_role <role>       — the Freelancer role
+ *   /setup manager_role    <role> [role2..role5] — manager roles (replaces the list; e.g. Moderator + Commission Team)
+ *   /setup freelancer_role <role> [role2..role5] — builder roles (replaces the list; the first is given on an accepted application)
  *   /setup color           <hex>        — brand color for embeds (e.g. #5865F2)
  *   /setup panel           [channel]    — post the ticket panel, or update ours in place
  *   /setup links [terms] [privacy] [banner] — legal links and banner on the panel
@@ -34,6 +34,16 @@ import { parseReactionList } from '../modules/site/showcaseReactions.js';
 import { ensureStaffChannels, STAFF_ROLES_MISSING } from '../modules/staff/staffChannels.js';
 import { replyError } from '../utils/replies.js';
 import { logger } from '../utils/logger.js';
+
+/** Option names of a role list: role (required) and role2..role5. */
+const ROLE_LIST_OPTIONS = ['role', 'role2', 'role3', 'role4', 'role5'];
+
+function addRoleList(sub) {
+  for (const [n, name] of ROLE_LIST_OPTIONS.entries()) {
+    sub.addRoleOption((o) => o.setName(name).setDescription(n ? 'One more role' : 'Role').setRequired(n === 0));
+  }
+  return sub;
+}
 
 export const setupCommandData = new SlashCommandBuilder()
   .setName('setup')
@@ -59,11 +69,9 @@ export const setupCommandData = new SlashCommandBuilder()
     s.setName('reviews').setDescription('Channel where reviews are posted')
       .addChannelOption((o) => o.setName('channel').setDescription('Text channel').addChannelTypes(ChannelType.GuildText).setRequired(true)))
   .addSubcommand((s) =>
-    s.setName('manager_role').setDescription('The Manager role')
-      .addRoleOption((o) => o.setName('role').setDescription('Role').setRequired(true)))
+    addRoleList(s.setName('manager_role').setDescription('Manager roles — replaces the list (up to 5)')))
   .addSubcommand((s) =>
-    s.setName('freelancer_role').setDescription('The Freelancer role')
-      .addRoleOption((o) => o.setName('role').setDescription('Role').setRequired(true)))
+    addRoleList(s.setName('freelancer_role').setDescription('Builder roles — replaces the list (up to 5, the first is the main one)')))
   .addSubcommand((s) =>
     s.setName('color').setDescription('Brand color for embeds (hex, e.g. #5865F2)')
       .addStringOption((o) => o.setName('hex').setDescription('#RRGGBB').setRequired(true)))
@@ -123,6 +131,13 @@ export async function handleSetupCommand(interaction) {
   if (!interaction.isChatInputCommand() || interaction.commandName !== 'setup') return;
   if (!interaction.guildId) {
     await interaction.reply({ content: 'This command can only be used in a server.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  // Discord hides /setup from non-admins by default, but a server can override that in
+  // Integrations — so the handler checks again. Manager roles are NOT enough: /setup decides who
+  // the managers are.
+  if (!interaction.member?.permissions?.has(PermissionFlagsBits.Administrator)) {
+    await interaction.reply({ content: 'Only server administrators can run /setup.', flags: MessageFlags.Ephemeral });
     return;
   }
   const guildId = interaction.guildId;
@@ -251,9 +266,15 @@ export async function handleSetupCommand(interaction) {
       case 'manager_role':
       case 'freelancer_role': {
         const key = sub === 'manager_role' ? 'role_manager' : 'role_freelancer';
-        const role = interaction.options.getRole('role');
-        setSetting(guildId, key, role.id);
-        await interaction.reply({ content: `✅ Set **${sub.replace('_', ' ')}** to <@&${role.id}>.`, flags: MessageFlags.Ephemeral });
+        const ids = [...new Set(ROLE_LIST_OPTIONS.map((n) => interaction.options.getRole(n)?.id).filter(Boolean))];
+        setSetting(guildId, key, ids.join(','));
+        const what = sub === 'manager_role' ? 'Manager roles' : 'Builder roles';
+        await interaction.reply({
+          content: `✅ **${what}**: ${ids.map((id) => `<@&${id}>`).join(', ')}.`
+            + ' Channels made before keep their old permissions — run `/setup staff_channels` again to refresh the staff channels.',
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        });
         return;
       }
       case 'color': {
@@ -316,7 +337,7 @@ export async function handleSetupCommand(interaction) {
         const line = (label, val, kind) => {
           if (!val) return `• **${label}**: _not set_`;
           if (kind === 'channel') return `• **${label}**: <#${val}>`;
-          if (kind === 'role') return `• **${label}**: <@&${val}>`;
+          if (kind === 'role') return `• **${label}**: ${val.split(',').map((id) => `<@&${id}>`).join(', ')}`;
           return `• **${label}**: \`${val}\``;
         };
         const text = [
@@ -340,8 +361,8 @@ export async function handleSetupCommand(interaction) {
           line('Terms link', cfg.terms_url, 'text'),
           line('Privacy link', cfg.privacy_url, 'text'),
           line('Panel banner', cfg.panel_banner_url, 'text'),
-          line('Manager role', cfg.role_manager, 'role'),
-          line('Freelancer role', cfg.role_freelancer, 'role'),
+          line('Manager roles', cfg.role_manager, 'role'),
+          line('Builder roles', cfg.role_freelancer, 'role'),
           line('Client role (1 order)', cfg.role_client, 'role'),
           line('Notable client role', cfg.role_notable, 'role'),
           line('VIP client role', cfg.role_vip, 'role'),

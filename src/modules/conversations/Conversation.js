@@ -16,7 +16,7 @@ import {
   setConversationCards,
 } from './ConversationRepository.js';
 import { conversationCardPayload, ticketLabel } from '../../embeds/templates.js';
-import { isManagerOrAdmin, getFreelancerRole } from '../../utils/permissions.js';
+import { isManagerOrAdmin, isBuilder } from '../../utils/permissions.js';
 import { logger } from '../../utils/logger.js';
 
 /**
@@ -29,9 +29,7 @@ export function startRefusal(member, ticket) {
   if (ticket?.type !== 'order' || !ticket.client_channel_id) return 'Order not found.';
   if (ticket.status !== STATUS.OPEN) return 'This order is no longer open for questions.';
   if (member.id === ticket.client_id) return 'This is your own order.';
-  const builderRole = member.guild ? getFreelancerRole(member.guild) : undefined;
-  const isBuilder = builderRole ? member.roles?.cache?.has(builderRole.id) : false;
-  if (!isBuilder && !isManagerOrAdmin(member)) return 'Only builders can message the client.';
+  if (!isBuilder(member) && !isManagerOrAdmin(member)) return 'Only builders can message the client.';
   return null;
 }
 

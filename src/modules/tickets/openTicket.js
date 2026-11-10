@@ -6,7 +6,7 @@
 
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { getTicketChannelName } from '../../utils/channelNaming.js';
-import { getManagerRole } from '../../utils/permissions.js';
+import { getManagerRoles } from '../../utils/permissions.js';
 import { getSetting } from '../../core/GuildConfig.js';
 import { createTicket, getTicketById } from './TicketRepository.js';
 import { ticketWelcomePayload } from '../../embeds/templates.js';
@@ -39,9 +39,8 @@ export async function openTicketChannel(guild, user, type) {
     { id: guild.id, deny: PermissionFlagsBits.ViewChannel },
     { id: user.id, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages },
   ];
-  const managerRole = getManagerRole(guild);
-  if (managerRole) {
-    overwrites.push({ id: managerRole.id, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages });
+  for (const role of getManagerRoles(guild)) {
+    overwrites.push({ id: role.id, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages });
   }
   const channel = await guild.channels.create({
     name: getTicketChannelName(type, user.username || 'user'),

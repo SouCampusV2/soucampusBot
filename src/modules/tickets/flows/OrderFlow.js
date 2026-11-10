@@ -36,7 +36,7 @@ import {
 } from '../../../embeds/templates.js';
 import { TICKET_TYPES, REFERENCE_MESSAGES_FIELD } from '../../../constants.js';
 import { getQuoteChannelName } from '../../../utils/channelNaming.js';
-import { getManagerRole, getFreelancerRole, ensureTicketClient } from '../../../utils/permissions.js';
+import { getManagerRoles, getBuilderRoles, ensureTicketClient } from '../../../utils/permissions.js';
 import { tryConsumeTicketCreate, isTicketCreateLimited } from '../../../utils/rateLimit.js';
 import { replyError } from '../../../utils/replies.js';
 import { logger } from '../../../utils/logger.js';
@@ -354,16 +354,10 @@ export async function createQuoteChannelForTicket(client, ticketId) {
     const member = await guild.members.fetch(ticket.client_id).catch(() => null);
     if (member) clientName = member.displayName || member.user.username || clientName;
     const channelName = getQuoteChannelName(clientName);
-    // Visibility: Freelancer + Manager (both roles see quote channels)
-    const managerRole = getManagerRole(guild);
-    const freelancerRole = getFreelancerRole(guild);
+    // Visibility: every builder role and every manager role (one overwrite per role).
+    const staffRoleIds = new Set([...getBuilderRoles(guild), ...getManagerRoles(guild)].map((r) => r.id));
     const overwrites = [{ id: guild.id, deny: PermissionFlagsBits.ViewChannel }];
-    if (freelancerRole) {
-      overwrites.push({ id: freelancerRole.id, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages });
-    }
-    if (managerRole && managerRole.id !== freelancerRole?.id) {
-      overwrites.push({ id: managerRole.id, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages });
-    }
+    for (const id of staffRoleIds) overwrites.push({ id, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages });
     const channel = await guild.channels.create({
       name: channelName,
       type: ChannelType.GuildText,

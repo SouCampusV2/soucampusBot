@@ -9,23 +9,23 @@
 
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import { getSetting, setSetting } from '../../core/GuildConfig.js';
-import { getManagerRole, getFreelancerRole } from '../../utils/permissions.js';
+import { getManagerRoles, getBuilderOnlyRoles } from '../../utils/permissions.js';
 
 const READ = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.ReadMessageHistory;
 const WRITE = READ | PermissionFlagsBits.SendMessages | PermissionFlagsBits.AttachFiles | PermissionFlagsBits.AddReactions;
 
 /** Shown when a role is missing — without both, "only staff" cannot be expressed. */
 export const STAFF_ROLES_MISSING =
-  'Set both roles first: `/setup manager_role` and `/setup freelancer_role` — the staff channels are visible only to them.';
+  'Set both first: `/setup manager_role` and `/setup freelancer_role` (builder roles) — the staff channels are visible only to them.';
 
 /** Who sees what. Builders only read announcements; the bot itself can always post. */
-function overwrites(guild, botUserId, managerRole, builderRole, builderCanWrite) {
+function overwrites(guild, botUserId, managerRoles, builderRoles, builderCanWrite) {
   return [
     { id: guild.id, deny: PermissionFlagsBits.ViewChannel },
-    { id: managerRole.id, allow: WRITE },
-    builderCanWrite
-      ? { id: builderRole.id, allow: WRITE }
-      : { id: builderRole.id, allow: READ, deny: PermissionFlagsBits.SendMessages },
+    ...managerRoles.map((r) => ({ id: r.id, allow: WRITE })),
+    ...builderRoles.map((r) => (builderCanWrite
+      ? { id: r.id, allow: WRITE }
+      : { id: r.id, allow: READ, deny: PermissionFlagsBits.SendMessages })),
     { id: botUserId, allow: WRITE },
   ];
 }
@@ -55,13 +55,14 @@ const CHANNELS = [
  * @returns {Promise<{ channels: import('discord.js').TextChannel[], created: number } | null>} null if a role is missing
  */
 export async function ensureStaffChannels(guild, botUserId) {
-  const managerRole = getManagerRole(guild);
-  const builderRole = getFreelancerRole(guild);
-  if (!managerRole || !builderRole) return null;
+  const managerRoles = getManagerRoles(guild);
+  // A role that is also a manager role already has full access through the manager overwrite.
+  const builderRoles = getBuilderOnlyRoles(guild);
+  if (!managerRoles.length || !builderRoles.length) return null;
 
   const savedCategory = getSetting(guild.id, 'category_staff');
   let category = savedCategory ? await guild.channels.fetch(savedCategory).catch(() => null) : null;
-  const categoryOverwrites = overwrites(guild, botUserId, managerRole, builderRole, true);
+  const categoryOverwrites = overwrites(guild, botUserId, managerRoles, builderRoles, true);
   if (category) {
     await category.permissionOverwrites.set(categoryOverwrites);
   } else {
@@ -72,7 +73,7 @@ export async function ensureStaffChannels(guild, botUserId) {
   const channels = [];
   let created = 0;
   for (const spec of CHANNELS) {
-    const perms = overwrites(guild, botUserId, managerRole, builderRole, spec.builderCanWrite);
+    const perms = overwrites(guild, botUserId, managerRoles, builderRoles, spec.builderCanWrite);
     const savedId = getSetting(guild.id, spec.key);
     let channel = savedId ? await guild.channels.fetch(savedId).catch(() => null) : null;
     if (channel) {

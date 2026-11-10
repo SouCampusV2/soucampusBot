@@ -3,18 +3,18 @@
  */
 
 import { getSetting } from '../core/GuildConfig.js';
-import { getFreelancerRole } from './permissions.js';
+import { getBuilderOnlyRoles } from './permissions.js';
 import { logger } from './logger.js';
 
 /**
  * Archive a quote channel read-only. Read-only means for every overwrite that allowed writing:
- * @everyone AND the Freelancer role (its overwrite explicitly allows SendMessages, so locking
+ * @everyone AND every builder role (their overwrite explicitly allow SendMessages, so locking
  * @everyone alone is not enough).
  * @param {import('discord.js').TextChannel} channel
  * @param {object} [logContext]
  */
 export async function archiveQuoteChannel(channel, logContext = {}) {
-  await archiveChannel(channel, [channel.guild.id, getFreelancerRole(channel.guild)?.id], logContext);
+  await archiveChannel(channel, [channel.guild.id, ...getBuilderOnlyRoles(channel.guild).map((r) => r.id)], logContext);
 }
 
 /**

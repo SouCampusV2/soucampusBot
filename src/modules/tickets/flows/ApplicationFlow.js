@@ -12,7 +12,7 @@
 import { MessageFlags } from 'discord.js';
 import { getTicketById, getTicketFields, saveTicketField } from '../TicketRepository.js';
 import { STATUS, transitionTicket } from '../TicketStatus.js';
-import { ensureTicketClient, isManagerOrAdmin, getFreelancerRole } from '../../../utils/permissions.js';
+import { ensureTicketClient, isManagerOrAdmin, getBuilderRoles } from '../../../utils/permissions.js';
 import {
   buildApplicationModal,
   getApplicationSummaryPayload,
@@ -91,16 +91,16 @@ export async function handleAcceptApplication(interaction, parts) {
   }
   try {
     await interaction.update({ content: `✅ Accepted by <@${interaction.user.id}>.`, components: [] });
-    const role = getFreelancerRole(interaction.guild);
+    const [role] = getBuilderRoles(interaction.guild); // the main (first) builder role
     const member = await interaction.guild.members.fetch(ticket.client_id).catch(() => null);
     let roleNote = '';
     if (!role) {
-      roleNote = ' ⚠️ No Freelancer role is configured — give it by hand or run `/setup freelancer_role`.';
+      roleNote = ' ⚠️ No builder role is configured — give it by hand or run `/setup freelancer_role`.';
     } else if (!member) {
       roleNote = ' ⚠️ The applicant is no longer on the server, so no role was given.';
     } else {
       await member.roles.add(role.id, 'Team application accepted').catch((err) => {
-        roleNote = ' ⚠️ Could not give the Freelancer role — check that the bot role is above it.';
+        roleNote = ' ⚠️ Could not give the builder role — check that the bot role is above it.';
         logger.warn('accept_application: role add failed', { ticketId: ticket.id, error: err.message });
       });
     }

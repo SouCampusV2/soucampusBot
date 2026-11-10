@@ -10,6 +10,7 @@ import { statsCommandData, handleStatsCommand } from '../../commands/statsComman
 import { setupCommandData, handleSetupCommand } from '../../commands/setupCommand.js';
 import { takeCommandData, handleTakeCommand, paylinkCommandData, handlePaylinkCommand } from '../../commands/takeCommand.js';
 import { attachClientTiers } from '../clients/ClientTiers.js';
+import { attachQuoteChannelLock } from './QuoteChannelLock.js';
 import { rulesCommandData, handleRulesCommand } from '../../commands/rulesCommand.js';
 import { handleCreateTicket } from '../../interactions/handlers/createTicket.js';
 import { handleSelectTicketType } from '../../interactions/handlers/selectTicketType.js';
@@ -157,6 +158,7 @@ export function registerTicketModule(client) {
   attachStaffLog(client);
   attachTranscripts(client);
   attachClientTiers(client);
+  attachQuoteChannelLock(client);
   attachShowcaseReactions(client);
 
   client.once(Events.ClientReady, async () => {

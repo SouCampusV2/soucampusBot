@@ -16,10 +16,15 @@ test('a server Administrator counts as manager without any role', () => {
   assert.equal(isManagerOrAdmin(fakeMember(guild, { admin: true })), true);
 });
 
-test('a role named "Manager" works when no manager role is configured', () => {
+// Security audit 2026-11, B-04: this test used to assert the opposite. A name is something
+// anyone with Manage Roles can hand out, so it must never decide who confirms payments.
+test('a role named "Manager" or "Admin" grants nothing when no manager role is configured', () => {
   const manager = fakeRole('Manager');
-  const guild = fakeGuild({ id: 'g-perm-byname', roles: [manager] });
-  assert.equal(isManagerOrAdmin(fakeMember(guild, { roles: [manager] })), true);
+  const admin = fakeRole('Admin');
+  const guild = fakeGuild({ id: 'g-perm-byname', roles: [manager, admin] });
+  assert.equal(isManagerOrAdmin(fakeMember(guild, { roles: [manager] })), false);
+  assert.equal(isManagerOrAdmin(fakeMember(guild, { roles: [admin] })), false);
+  assert.equal(isManagerOrAdmin(fakeMember(guild, { admin: true })), true, 'Administrators still are');
 });
 
 test('a role named "Manager" does not count once another manager role is configured', () => {

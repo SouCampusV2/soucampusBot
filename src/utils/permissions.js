@@ -104,8 +104,12 @@ export function isBuilder(member) {
 /**
  * Check if member is manager or admin — the ONLY place that decides manager access.
  * Manager = server Administrator permission, or any role set via /setup manager_role.
- * Roles named "Manager"/"Admin" count only while no manager role is configured
- * (single-server legacy mode); once one is configured, a look-alike name grants nothing.
+ *
+ * A role NAME grants nothing (security audit 2026-11, B-04). Until 2026-11-12 a role called
+ * "Manager" or "Admin" counted while no manager role was configured — so on such a server
+ * anyone allowed to manage roles could create a role with that name, give it to themselves
+ * and confirm payments. With no role configured, only server Administrators are managers:
+ * run /setup manager_role.
  * @param {import('discord.js').GuildMember} member
  * @returns {boolean}
  */
@@ -113,6 +117,5 @@ export function isManagerOrAdmin(member) {
   if (!member?.roles) return false;
   if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
   const configured = member.guild ? roleIdsSetting(member.guild.id, 'role_manager') : [];
-  if (configured.length) return configured.some((id) => member.roles.cache.has(id));
-  return hasRole(member, ROLES.MANAGER) || hasRole(member, ROLES.ADMIN);
+  return configured.some((id) => member.roles.cache.has(id));
 }

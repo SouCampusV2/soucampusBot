@@ -29,6 +29,12 @@ export function getBot(options = {}) {
     //   guild.members.fetch(id), a plain REST call.
     // GuildMessages (not privileged): see new showcase posts to add reactions (showcaseReactions.js).
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+    // Default for EVERY message the bot sends (security audit 2026-11, B-02): only user mentions
+    // ping. Order forms, quotes and relayed conversation text are written by people, and the bot
+    // is an administrator, so without this an `@everyone` or a role mention typed into a form
+    // pinged the whole channel in the bot's name. A message that must ping a role says so
+    // itself with its own allowedMentions (see utils/notify.js) and overrides this default.
+    allowedMentions: { parse: ['users'] },
   });
 
   // Without an 'error' listener, Node turns an emitted 'error' (e.g. a gateway hiccup) into a crash.

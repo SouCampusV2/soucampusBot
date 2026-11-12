@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Collection } from 'discord.js';
 import { seedOrder } from './helpers/db.js';
 import { fakeGuild, fakeMember, fakeChannel, fakeClient, fakeInteraction, answerKind } from './helpers/fakes.js';
-import { signBody, enqueue, flushOutbox, pendingCount, buildPortfolioDraft } from '../src/modules/site/SiteBridge.js';
+import { signBody, enqueue, flushOutbox, pendingCount, buildPortfolioDraft, bridgeAllowsGuild } from '../src/modules/site/SiteBridge.js';
 import { handleSiteConsent } from '../src/modules/site/consent.js';
 import { createReview } from '../src/modules/reviews/ReviewRepository.js';
 import { getTicketById } from '../src/modules/tickets/TicketRepository.js';
@@ -117,4 +117,35 @@ test('consent buttons: only the client can answer, and the answer is recorded on
   await handleSiteConsent(review, ['site_consent', ticketId, 'review', 'no']);
   assert.equal(query('SELECT site_consent FROM reviews WHERE ticket_id = ?', [ticketId])[0].site_consent, 0);
   assert.equal(query('SELECT COUNT(*) n FROM site_outbox WHERE key = ?', [`review:${ticketId}`])[0].n, 0, 'no = nothing sent');
+});
+
+// Security audit 2026-11, B-01: the bridge is tied to the owner's servers.
+test('bridge guild list: SITE_BRIDGE_GUILDS wins, GUILD_ID is the fallback, empty means open', () => {
+  assert.equal(bridgeAllowsGuild('1', { SITE_BRIDGE_GUILDS: '1, 2' }), true);
+  assert.equal(bridgeAllowsGuild('3', { SITE_BRIDGE_GUILDS: '1, 2' }), false);
+  assert.equal(bridgeAllowsGuild('3', { SITE_BRIDGE_GUILDS: '1', GUILD_ID: '3' }), false);
+  assert.equal(bridgeAllowsGuild('3', { GUILD_ID: '3' }), true);
+  assert.equal(bridgeAllowsGuild('4', { GUILD_ID: '3' }), false);
+  assert.equal(bridgeAllowsGuild('4', {}), true);
+});
+
+test('consent from a server outside the bridge list is recorded but not sent', async () => {
+  const guild = fakeGuild({ id: 'g-bridge-foreign' });
+  const client = fakeMember(guild, { name: 'Mallory' });
+  const channel = fakeChannel(guild);
+  const ticketId = seedOrder({ guildId: guild.id, clientId: client.id, clientChannelId: channel.id, assignedFreelancerId: 'bob', completed: true });
+  const discord = fakeClient([channel]);
+  channel.messages.fetch = async () => new Collection();
+
+  const before = process.env.SITE_BRIDGE_GUILDS;
+  process.env.SITE_BRIDGE_GUILDS = 'g-home-only';
+  try {
+    const yes = fakeInteraction({ client: discord, member: client, guild });
+    await handleSiteConsent(yes, ['site_consent', ticketId, 'portfolio', 'yes']);
+    assert.equal(getTicketById(ticketId).portfolio_consent, 1, 'the answer itself is kept');
+    assert.equal(query('SELECT COUNT(*) n FROM site_outbox WHERE key = ?', [`portfolio:${ticketId}`])[0].n, 0, 'nothing queued for the site');
+  } finally {
+    if (before === undefined) delete process.env.SITE_BRIDGE_GUILDS;
+    else process.env.SITE_BRIDGE_GUILDS = before;
+  }
 });

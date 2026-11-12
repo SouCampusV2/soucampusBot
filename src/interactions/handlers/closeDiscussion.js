@@ -3,6 +3,8 @@
  */
 
 import { MessageFlags } from 'discord.js';
+import { getTicketById } from '../../modules/tickets/TicketRepository.js';
+import { isManagerOrAdmin, isBuilder } from '../../utils/permissions.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
 
@@ -11,6 +13,19 @@ export async function handleCloseDiscussion(interaction, parts) {
   const threadId = parts[2];
   if (!ticketId || !threadId) {
     await interaction.reply({ content: 'Invalid data.', flags: MessageFlags.Ephemeral });
+    return;
+  }
+  // Every button is a public door (security audit 2026-11, B-05): this was the one handler that
+  // did not ask who pressed it, so anyone who saw the button could archive the thread named in it.
+  const ticket = getTicketById(ticketId);
+  const member = interaction.member;
+  const allowed =
+    ticket && (ticket.client_id === interaction.user.id || isBuilder(member) || isManagerOrAdmin(member));
+  if (!allowed) {
+    await interaction.reply({
+      content: 'Only the client, the builders and managers can close this discussion.',
+      flags: MessageFlags.Ephemeral,
+    });
     return;
   }
   try {

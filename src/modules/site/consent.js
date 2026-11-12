@@ -11,7 +11,7 @@ import { MessageFlags } from 'discord.js';
 import { getTicketById } from '../tickets/TicketRepository.js';
 import { getReviewByTicketId } from '../reviews/ReviewRepository.js';
 import { run } from '../../core/Database.js';
-import { enqueue, buildPortfolioDraft, flushOutbox } from './SiteBridge.js';
+import { enqueue, buildPortfolioDraft, flushOutbox, bridgeAllowsGuild } from './SiteBridge.js';
 import { ensureTicketClient } from '../../utils/permissions.js';
 import { replyError } from '../../utils/replies.js';
 import { logger } from '../../utils/logger.js';
@@ -45,6 +45,12 @@ export async function handleSiteConsent(interaction, parts) {
       components: [],
     });
     if (!yes) return;
+    // The answer is recorded either way; only orders of the allowed servers travel to the
+    // website (see bridgeAllowsGuild).
+    if (!bridgeAllowsGuild(ticket.guild_id)) {
+      logger.warn('Website consent from a server outside the bridge list — not sent', { ticketId, guildId: ticket.guild_id });
+      return;
+    }
     if (what === 'portfolio') {
       enqueue('portfolio_draft', `portfolio:${ticketId}`, await buildPortfolioDraft(interaction.client, ticket));
     } else {
@@ -52,6 +58,7 @@ export async function handleSiteConsent(interaction, parts) {
       if (review) {
         enqueue('review', `review:${ticketId}`, {
           ticketId,
+          guildId: ticket.guild_id ?? null,
           rating: review.rating,
           comment: review.comment ?? '',
           // The client agreed to show THEIR review — their display name signs it.

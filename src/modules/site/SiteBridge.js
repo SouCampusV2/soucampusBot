@@ -36,6 +36,25 @@ export function siteConfig() {
  * @param {string} timestamp - unix seconds, as sent in x-bocampus-timestamp
  * @param {string} body - the exact raw JSON string sent
  */
+/**
+ * Servers whose orders may be sent to the website (security audit 2026-11, B-01).
+ *
+ * The bridge signs whatever it sends with the site's secret, so the site trusts it. Before this
+ * check anyone who added the bot to a server of their own was an administrator there, could run
+ * a fake order from start to finish and push a "client review" into the owner's queue — the
+ * payload did not even say which server it came from.
+ *
+ * SITE_BRIDGE_GUILDS (comma-separated ids) wins; otherwise the home server, GUILD_ID. With neither
+ * set the bridge stays open, as before — set one of them on the VPS before enabling the bridge.
+ */
+export function bridgeAllowsGuild(guildId, env = process.env) {
+  const allowed = (env.SITE_BRIDGE_GUILDS || env.GUILD_ID || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return allowed.length === 0 || allowed.includes(String(guildId));
+}
+
 export function signBody(secret, timestamp, body) {
   return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex');
 }
@@ -133,6 +152,8 @@ export async function buildPortfolioDraft(client, ticket) {
 
   return {
     ticketId: ticket.id,
+    // Which server the order lived on: shown to the owner next to the draft.
+    guildId: ticket.guild_id ?? null,
     need: fields.need ?? '',
     theme: fields.theme ?? '',
     version: fields.version ?? '',
